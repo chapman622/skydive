@@ -1,150 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Skydive Finder Widget</title>
-  <style>
-    body { margin:0; font-family:"Segoe UI", sans-serif; background:transparent; color:#fff; }
-    #widget {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: rgba(0,0,0,0.6);
-      border-radius: 12px;
-      padding: 12px 20px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.4);
-      cursor: move;
-      min-width: 220px;
-      text-align: center;
-      z-index: 9999;
-    }
-    #widget:hover { background: rgba(0,0,0,0.8); }
-    #status { font-size: 16px; margin-bottom: 8px; }
-    #keyPrompt {
-      position: fixed; top:50%; left:50%; transform:translate(-50%, -50%);
-      background: rgba(0,0,0,0.8); color:white; padding:20px; border-radius:10px; text-align:center;
-    }
-    input { padding: 8px; border-radius: 6px; border: none; width: 180px; text-align:center; margin-top:10px; }
-    button { margin-top: 10px; padding:6px 12px; border:none; background:#00b86b; color:white; border-radius:6px; cursor:pointer; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skydive Finder Widget</title>
+<style>
+  body { margin:0; font-family:"Segoe UI", sans-serif; background:transparent; color:#fff; }
+  #widget {
+    position: fixed; bottom:20px; right:20px;
+    background: rgba(0,0,0,0.6); border-radius:12px; padding:12px 20px;
+    box-shadow:0 0 15px rgba(0,0,0,0.4); cursor: move; min-width:220px; text-align:center; z-index:9999;
+  }
+  #widget:hover { background: rgba(0,0,0,0.8); }
+  #status { font-size:16px; margin-bottom:8px; }
+  #keyPrompt {
+    position: fixed; top:50%; left:50%; transform:translate(-50%, -50%);
+    background: rgba(0,0,0,0.8); color:white; padding:20px; border-radius:10px; text-align:center;
+  }
+  input { padding:8px; border-radius:6px; border:none; width:180px; text-align:center; margin-top:10px; }
+  button { margin-top:10px; padding:6px 12px; border:none; background:#00b86b; color:white; border-radius:6px; cursor:pointer; }
+</style>
 </head>
 <body>
-  <div id="widget">
-    <div id="status">Enter VRPid to find nearest skydive</div>
-    <input type="text" id="vrpid" placeholder="Your VRPid">
-    <br>
-    <button onclick="start()">Start</button>
-  </div>
+<div id="widget">
+  <div id="status">Enter VRPid to find nearest skydive</div>
+  <input type="text" id="vrpid" placeholder="Your VRPid"><br>
+  <button onclick="start()">Start</button>
+</div>
 
-  <div id="keyPrompt" style="display:none;">
-    <h3>Enter Tycoon API Key</h3>
-    <input type="password" id="apiKeyInput" placeholder="Private key">
-    <br>
-    <button onclick="saveKey()">Save</button>
-  </div>
+<div id="keyPrompt" style="display:none;">
+  <h3>Enter Tycoon API Key</h3>
+  <input type="password" id="apiKeyInput" placeholder="Private key"><br>
+  <button onclick="saveKey()">Save</button>
+</div>
 
-  <script>
-    const SKYDIVES = [
-      { name:"Mount Chiliad", x:-500, y:5000 },
-      { name:"Los Santos Airport", x:-1000, y:-2000 },
-      { name:"Vinewood Hills", x:800, y:1200 }
-    ];
+<script>
+const SKYDIVES = [
+  { name:"Mount Chiliad", x:-500, y:5000 },
+  { name:"Los Santos Airport", x:-1000, y:-2000 },
+  { name:"Vinewood Hills", x:800, y:1200 }
+];
 
-    const SERVERS = [
-      { name:"2epova", url:"https://tycoon-2epova.users.cfx.re/status/widget/players.json" },
-      { name:"njyvop", url:"https://tycoon-njvop.users.cfx.re/status/widget/players.json" }
-    ];
+const SERVERS = [
+  { name:"2epova", url:"https://tycoon-2epova.users.cfx.re/status/widget/players.json" },
+  { name:"njyvop", url:"https://tycoon-njvop.users.cfx.re/status/widget/players.json" }
+];
 
-    function saveKey() {
-      const key = document.getElementById("apiKeyInput").value.trim();
-      if (key) {
-        localStorage.setItem("tycoonApiKey", key);
-        document.getElementById("keyPrompt").style.display="none";
-        start();
-      }
+// Save API key
+function saveKey(){
+  const key=document.getElementById("apiKeyInput").value.trim();
+  if(key){
+    localStorage.setItem("tycoonApiKey", key);
+    document.getElementById("keyPrompt").style.display="none";
+    start();
+  }
+}
+
+// Detect server
+async function detectServer(vrpid){
+  for(const server of SERVERS){
+    try{
+      const res=await fetch(server.url);
+      const data=await res.json();
+      if(data.players.some(p=>p[2]==vrpid)) return server.name;
+    }catch(e){ console.error(e); }
+  }
+  throw new Error("Player not found on any server.");
+}
+
+// Get player position
+async function getPosition(serverName, apiKey, vrpid){
+  const url=`https://tycoon-${serverName}.users.cfx.re/status/map/positions.json`;
+  const res=await fetch(url, { headers:{ "X-Tycoon-Key": apiKey } });
+  const data=await res.json();
+  return data.players.find(p=>p[2]==vrpid);
+}
+
+function distance(a,b){ return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2); }
+
+async function findNearest(){
+  try{
+    const apiKey=localStorage.getItem("tycoonApiKey");
+    const vrpid=localStorage.getItem("vrpid");
+    const serverName=localStorage.getItem("serverName");
+
+    if(!apiKey) { document.getElementById("keyPrompt").style.display="block"; return; }
+
+    const player=await getPosition(serverName, apiKey, vrpid);
+    if(!player) throw new Error("Player not found in map data.");
+
+    const current={ x:player.pos_x, y:player.pos_y };
+    const nearest=SKYDIVES.reduce((a,b)=>distance(current,a)<distance(current,b)?a:b);
+
+    const statusDiv=document.getElementById("status");
+    statusDiv.innerText=`Nearest: ${nearest.name} (${nearest.x.toFixed(0)}, ${nearest.y.toFixed(0)})`;
+
+    if(typeof setWaypoint==="function"){
+      setWaypoint(nearest.x, nearest.y);
+      statusDiv.innerText+="\n✅ Waypoint set!";
+    } else {
+      statusDiv.innerText+="\n❗ Copy manually.";
     }
+  } catch(err){
+    console.error(err);
+    document.getElementById("status").innerText="❌ "+err.message;
+  }
+}
 
-    async function detectServer(vrpid) {
-      for (const server of SERVERS) {
-        try {
-          const res = await fetch(server.url);
-          const data = await res.json();
-          if (data.players.some(p=>p[2]==vrpid)) return server.name;
-        } catch(e){ console.error(e); }
-      }
-      throw new Error("Player not found on any server.");
-    }
+async function start(){
+  const vrpid=document.getElementById("vrpid").value.trim();
+  if(!vrpid) return alert("Enter your VRPid first.");
+  localStorage.setItem("vrpid", vrpid);
 
-    async function getPosition(serverName, apiKey, vrpid) {
-      const url=`https://tycoon-${serverName}.users.cfx.re/status/map/positions.json`;
-      const res = await fetch(url, { headers:{ "X-Tycoon-Key": apiKey } });
-      const data = await res.json();
-      return data.players.find(p=>p[2]==vrpid);
-    }
+  let apiKey=localStorage.getItem("tycoonApiKey");
+  if(!apiKey){
+    document.getElementById("keyPrompt").style.display="block";
+    return;
+  }
 
-    function distance(a,b){ return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2); }
+  try{
+    const serverName=await detectServer(vrpid);
+    localStorage.setItem("serverName", serverName);
+    findNearest();
+  }catch(err){ alert("Error: "+err.message); }
+}
 
-    async function findNearest() {
-      try {
-        const apiKey=localStorage.getItem("tycoonApiKey");
-        const vrpid=localStorage.getItem("vrpid");
-        const serverName=localStorage.getItem("serverName");
-
-        const player = await getPosition(serverName, apiKey, vrpid);
-        if(!player) throw new Error("Player not found in map data.");
-
-        const current={ x: player.pos_x, y: player.pos_y };
-        const nearest = SKYDIVES.reduce((a,b)=>distance(current,a)<distance(current,b)?a:b);
-
-        const statusDiv=document.getElementById("status");
-        statusDiv.innerText=`Nearest: ${nearest.name} (${nearest.x.toFixed(0)}, ${nearest.y.toFixed(0)})`;
-
-        if(typeof setWaypoint==="function"){
-          setWaypoint(nearest.x, nearest.y);
-          statusDiv.innerText+="\n✅ Waypoint set!";
-        } else {
-          statusDiv.innerText+="\n❗ Copy manually.";
-        }
-
-      } catch(err){ 
-        console.error(err); 
-        document.getElementById("status").innerText="❌ "+err.message;
-      }
-    }
-
-    async function start(){
-      let vrpid=document.getElementById("vrpid").value.trim();
-      if(!vrpid) return alert("Enter your VRPid first.");
-
-      let apiKey=localStorage.getItem("tycoonApiKey");
-      if(!apiKey) document.getElementById("keyPrompt").style.display="block";
-
-      localStorage.setItem("vrpid", vrpid);
-      if(apiKey){
-        try{
-          const serverName = await detectServer(vrpid);
-          localStorage.setItem("serverName", serverName);
-          findNearest();
-        }catch(err){ alert("Error: "+err.message); }
-      }
-    }
-
-    // Make widget draggable
-    const widget=document.getElementById("widget");
-    let isDragging=false, offsetX=0, offsetY=0;
-    widget.addEventListener("mousedown", e=>{
-      isDragging=true;
-      offsetX=e.clientX-widget.offsetLeft;
-      offsetY=e.clientY-widget.offsetTop;
-    });
-    document.addEventListener("mouseup",()=>isDragging=false);
-    document.addEventListener("mousemove", e=>{
-      if(isDragging){
-        widget.style.left=(e.clientX-offsetX)+"px";
-        widget.style.top=(e.clientY-offsetY)+"px";
-      }
-    });
-  </script>
+// Make widget draggable
+const widget=document.getElementById("widget");
+let isDragging=false, offsetX=0, offsetY=0;
+widget.addEventListener("mousedown", e=>{
+  isDragging=true;
+  offsetX=e.clientX-widget.offsetLeft;
+  offsetY=e.clientY-widget.offsetTop;
+});
+document.addEventListener("mouseup",()=>isDragging=false);
+document.addEventListener("mousemove", e=>{
+  if(isDragging){
+    widget.style.left=(e.clientX-offsetX)+"px";
+    widget.style.top=(e.clientY-offsetY)+"px";
+  }
+});
+</script>
 </body>
 </html>
