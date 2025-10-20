@@ -5,35 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tycoon Skydive Finder</title>
   <style>
-    body {
-      font-family: "Segoe UI", sans-serif;
-      background: #111;
-      color: white;
-      padding: 20px;
-      text-align: center;
-    }
-    button {
-      background: #00b86b;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      font-size: 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-    input {
-      padding: 8px;
-      border-radius: 6px;
-      border: none;
-      width: 200px;
-      text-align: center;
-    }
+    body { font-family: "Segoe UI", sans-serif; background: #111; color: white; text-align: center; padding: 20px; }
+    button { background: #00b86b; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; margin-top: 10px; }
+    input { padding: 8px; border-radius: 6px; border: none; width: 200px; text-align: center; }
   </style>
 </head>
 <body>
   <h2>🪂 Tycoon Skydive Finder</h2>
-  <p>Find and set a waypoint to your nearest skydive location!</p>
+  <p>Set a waypoint to your nearest skydive location!</p>
 
   <div id="setup">
     <p>Enter your <b>VRPid</b>:</p>
@@ -51,25 +30,30 @@
       { name: "Mount Chiliad", x: -500, y: 5000 },
       { name: "Los Santos Airport", x: -1000, y: -2000 },
       { name: "Vinewood Hills", x: 800, y: 1200 }
-      // add real coords later
     ];
 
-    async function getServer(vrpid) {
-      const res = await fetch("https://cdn.tycoon.community/servers.json");
-      const servers = await res.json();
-      for (const [key, server] of Object.entries(servers)) {
-        if (server.players?.some(p => p.vrp_id == vrpid)) {
-          return server.endpoint;
-        }
+    const SERVERS = [
+      { name: "2epova", url: "https://tycoon-2epova.users.cfx.re/status/widget/players.json" },
+      { name: "njyvop", url: "https://tycoon-njvop.users.cfx.re/status/widget/players.json" }
+    ];
+
+    async function detectServer(vrpid) {
+      for (const server of SERVERS) {
+        try {
+          const res = await fetch(server.url);
+          const data = await res.json();
+          const found = data.players.some(p => p[2] == vrpid);
+          if (found) return server.name;
+        } catch (err) { console.error(err); }
       }
       throw new Error("Player not found on any server.");
     }
 
-    async function getPosition(serverUrl, apiKey) {
-      const res = await fetch(`${serverUrl}/status/map/positions.json`, {
-        headers: { "X-Tycoon-Key": apiKey }
-      });
-      return await res.json();
+    async function getPosition(serverName, apiKey, vrpid) {
+      const url = `https://tycoon-${serverName}.users.cfx.re/status/map/positions.json`;
+      const res = await fetch(url, { headers: { "X-Tycoon-Key": apiKey } });
+      const data = await res.json();
+      return data.players.find(p => p[2] == vrpid);
     }
 
     function distance(a, b) {
@@ -79,17 +63,14 @@
     async function findNearest() {
       try {
         const apiKey = localStorage.getItem("tycoonApiKey");
-        const serverUrl = localStorage.getItem("serverUrl");
         const vrpid = localStorage.getItem("vrpid");
+        const serverName = localStorage.getItem("serverName");
 
-        const data = await getPosition(serverUrl, apiKey);
-        const player = data.players.find(p => p.vrp_id == vrpid);
+        const player = await getPosition(serverName, apiKey, vrpid);
         if (!player) throw new Error("Player not found in map data.");
 
         const current = { x: player.pos_x, y: player.pos_y };
-        const nearest = SKYDIVES.reduce((a, b) =>
-          distance(current, a) < distance(current, b) ? a : b
-        );
+        const nearest = SKYDIVES.reduce((a, b) => distance(current, a) < distance(current, b) ? a : b);
 
         document.getElementById("status").innerText =
           `Nearest: ${nearest.name} (${nearest.x.toFixed(0)}, ${nearest.y.toFixed(0)})`;
@@ -118,8 +99,8 @@
       localStorage.setItem("tycoonApiKey", apiKey);
 
       try {
-        const serverUrl = await getServer(vrpid);
-        localStorage.setItem("serverUrl", serverUrl);
+        const serverName = await detectServer(vrpid);
+        localStorage.setItem("serverName", serverName);
 
         document.getElementById("setup").style.display = "none";
         document.getElementById("result").style.display = "block";
