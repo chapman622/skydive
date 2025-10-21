@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Skydive Widget</title>
+<title>Skydive Widget Auto-Server</title>
 <style>
   body { margin:0; background:transparent; font-family:Segoe UI, sans-serif; }
   #widget {
@@ -36,42 +36,63 @@ const skydiveLocations = [
   {name:"Skydive Gamma", x:1000, y:-2000, z:100},
 ];
 
-let vrpid, apiKey, updateInterval;
+// List of servers to check
+const servers = [
+  {name:"2epova", url:"https://tycoon-2epova.users.cfx.re/status/widget/players.json"},
+  {name:"-njyvop", url:"https://tycoon-njyvop.users.cfx.re/status/widget/players.json"}
+];
 
-function startWidget(){
+let vrpid, apiKey, serverUrl, updateInterval;
+
+async function startWidget(){
   vrpid = document.getElementById("vrpidInput").value.trim();
   apiKey = document.getElementById("apiKeyInput").value.trim();
   if(!vrpid || !apiKey) return alert("Enter VRPid and Private API Key");
+
+  document.getElementById("nearest").innerText = "Detecting server...";
+
+  // Auto-detect server
+  serverUrl = await detectServer(vrpid);
+  if(!serverUrl){
+    document.getElementById("nearest").innerText = `VRPid ${vrpid} not found on any server`;
+    return;
+  }
+
+  document.getElementById("nearest").innerText = `Server detected: ${serverUrl}`;
 
   findNearest();
   updateInterval = setInterval(findNearest, 3000); // update every 3s
 }
 
+async function detectServer(vrpid){
+  for(const server of servers){
+    try{
+      const res = await fetch(`${server.url}?v=${Date.now()}`, {
+        headers: {"X-Tycoon-Key": apiKey}
+      });
+      if(!res.ok) continue;
+      const data = await res.json();
+      if(!data.players) continue;
+      const found = data.players.find(p => p[2]==vrpid);
+      if(found) return server.name; // return server ID for map endpoint
+    }catch(e){ continue; }
+  }
+  return null;
+}
+
 async function findNearest(){
   try{
-    const url = `https://tycoon-2epova.users.cfx.re/status/map/positions.json?v=${Date.now()}`;
-    const res = await fetch(url, {
-      headers: { "X-Tycoon-Key": apiKey }
-    });
-
+    const mapUrl = `https://tycoon-${serverUrl}.users.cfx.re/status/map/positions.json?v=${Date.now()}`;
+    const res = await fetch(mapUrl, { headers: { "X-Tycoon-Key": apiKey } });
     if(!res.ok){
-      // Show full HTTP error
-      document.getElementById("nearest").innerText = `HTTP Error: ${res.status} ${res.statusText}`;
+      document.getElementById("nearest").innerText = `HTTP Error: ${res.status}`;
       return;
     }
-
     const data = await res.json();
-
-    if(!data.players){
-      document.getElementById("nearest").innerText = `API Response Missing Players`;
-      return;
-    }
+    if(!data.players){ document.getElementById("nearest").innerText = `API Response Missing Players`; return; }
 
     const player = data.players.find(p => p[2]==vrpid);
-    if(!player){
-      document.getElementById("nearest").innerText = `Player with VRPid ${vrpid} not found`;
-      return;
-    }
+    if(!player){ document.getElementById("nearest").innerText = `Player not found`; return; }
 
     const pos = player[3]; // x, y, z
     let nearest = skydiveLocations[0];
@@ -83,7 +104,6 @@ async function findNearest(){
 
     document.getElementById("nearest").innerText = `Nearest Skydive: ${nearest.name} (${Math.round(minDist)}m)`;
 
-    // Set waypoint in-game
     if(window.setWaypoint) window.setWaypoint(nearest.x, nearest.y);
 
   }catch(err){
@@ -92,15 +112,12 @@ async function findNearest(){
   }
 }
 
-function distance(a,b){
-  return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2);
-}
+function distance(a,b){ return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2); }
 
-// Make widget draggable only by header
 dragElement(document.getElementById("widget"), document.getElementById("header"));
 function dragElement(el, handle){
   let pos1=0,pos2=0,pos3=0,pos4=0;
-  handle.onmousedown = dragMouseDown;
+  handle.onmousedown=dragMouseDown;
   function dragMouseDown(e){
     e=e||window.event; e.preventDefault();
     pos3=e.clientX; pos4=e.clientY;
@@ -114,10 +131,7 @@ function dragElement(el, handle){
     el.style.top=(el.offsetTop-pos2)+"px";
     el.style.left=(el.offsetLeft-pos1)+"px";
   }
-  function closeDragElement(){
-    document.onmouseup=null;
-    document.onmousemove=null;
-  }
+  function closeDragElement(){ document.onmouseup=null; document.onmousemove=null; }
 }
 </script>
 </body>
