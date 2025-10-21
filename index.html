@@ -5,41 +5,44 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Skydive Finder</title>
 <style>
-  body { margin: 0; background: transparent; font-family: "Segoe UI", sans-serif; }
-  #widget {
+  body {
+    margin: 0;
+    background: transparent;
+  }
+
+  #skydiveBtn {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background: rgba(0,0,0,0.6);
-    border-radius: 10px;
-    padding: 12px 16px;
-    min-width: 200px;
-    box-shadow: 0 0 12px rgba(0,0,0,0.5);
-    cursor: grab;
-  }
-  #widget:hover { background: rgba(0,0,0,0.8); }
-  #nearest { margin-top: 8px; font-weight: bold; }
-  button {
-    margin-top: 8px;
-    padding: 6px 12px;
-    border: none;
-    background: #00b86b;
+    background: rgba(0,0,0,0.7);
     color: white;
-    border-radius: 6px;
-    cursor: pointer;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 14px;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    cursor: grab;
+    box-shadow: 0 0 10px rgba(0,0,0,0.4);
+    transition: background 0.2s, transform 0.15s;
+    z-index: 9999;
+  }
+
+  #skydiveBtn:hover {
+    background: rgba(0,0,0,0.85);
+    transform: scale(1.05);
+  }
+
+  #skydiveBtn:active {
+    cursor: grabbing;
   }
 </style>
 </head>
 <body>
 
-<div id="widget">
-  <div>Skydive Finder</div>
-  <div id="nearest">Calculating nearest skydive...</div>
-  <button id="setWaypointBtn">Set Nearest Skydive</button>
-</div>
+<button id="skydiveBtn">Set Nearest Skydive (F6)</button>
 
 <script>
-  // Skydive locations with names
+  // --- Skydive Locations ---
   const skydiveLocations = [
     { name: "LSIA", x: -1583.657, y: -3180.656 },
     { name: "Higgins Heli Tours", x: -760.006, y: -1514.055 },
@@ -49,16 +52,27 @@
     { name: "Roxwood Airport", x: -3066.467, y: 7393.38 }
   ];
 
-  let playerPos = { x: 0, y: 0 };
+  let playerPos = { x: 0, y: 0, z: 0 };
 
-  // Get nearest skydive location
+  // --- Request position updates from game ---
+  window.parent.postMessage({ type: "getData" }, "*");
+
+  // --- Receive position updates ---
+  window.addEventListener("message", (event) => {
+    if (event.data.type === "updatePlayerPos") {
+      playerPos = event.data.pos;
+      console.log("Position updated:", playerPos);
+    }
+  });
+
+  // --- Calculate nearest skydive ---
   function getNearestSkydive() {
     let nearest = null;
     let minDist = Infinity;
-    for (const loc of skydiveLocations) {
+    for (let loc of skydiveLocations) {
       const dx = loc.x - playerPos.x;
       const dy = loc.y - playerPos.y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
+      const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < minDist) {
         minDist = dist;
         nearest = loc;
@@ -67,65 +81,70 @@
     return nearest;
   }
 
-  // Set waypoint in-game
+  // --- Set waypoint ---
   function setWaypoint(x, y) {
     window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
+    console.log("Waypoint set to:", x, y);
   }
 
-  // Update nearest skydive label in real-time
-  function updateNearestLabel() {
+  // --- Button + keybind ---
+  const btn = document.getElementById("skydiveBtn");
+  btn.addEventListener("click", () => handleWaypoint());
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "F6") handleWaypoint();
+  });
+
+  function handleWaypoint() {
     const nearest = getNearestSkydive();
     if (nearest) {
-      document.getElementById("nearest").textContent = `Nearest: ${nearest.name}`;
+      setWaypoint(nearest.x, nearest.y);
+      btn.textContent = `Waypoint: ${nearest.name}`;
+      setTimeout(() => btn.textContent = "Set Nearest Skydive (F6)", 2500);
+    } else {
+      btn.textContent = "No Position Detected";
+      setTimeout(() => btn.textContent = "Set Nearest Skydive (F6)", 2500);
     }
   }
 
-  // Listen for in-game player position updates
-  window.addEventListener("message", (event) => {
-    if (event.data.type === "updatePlayerPos") {
-      playerPos.x = event.data.pos.x;
-      playerPos.y = event.data.pos.y;
-      updateNearestLabel();
-    }
+  // --- Dragging + position save ---
+  let isDragging = false;
+  let offsetX, offsetY;
+
+  // Load saved position
+  const savedPos = JSON.parse(localStorage.getItem("skydiveBtnPos"));
+  if (savedPos) {
+    btn.style.left = savedPos.left;
+    btn.style.top = savedPos.top;
+    btn.style.right = "auto";
+    btn.style.bottom = "auto";
+  }
+
+  btn.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    offsetX = e.clientX - btn.offsetLeft;
+    offsetY = e.clientY - btn.offsetTop;
+    btn.style.cursor = "grabbing";
   });
 
-  // Button click sets nearest waypoint
-  document.getElementById("setWaypointBtn").addEventListener("click", () => {
-    const nearest = getNearestSkydive();
-    if (nearest) setWaypoint(nearest.x, nearest.y);
-  });
-
-  // F6 keybind to set nearest waypoint
-  document.addEventListener("keydown", (e) => {
-    if (e.code === "F6") {
-      const nearest = getNearestSkydive();
-      if (nearest) setWaypoint(nearest.x, nearest.y);
-    }
-  });
-
-  // Draggable widget
-  const widget = document.getElementById("widget");
-  let dragging = false, offsetX, offsetY;
-
-  widget.addEventListener("mousedown", e => {
-    dragging = true;
-    offsetX = e.clientX - widget.offsetLeft;
-    offsetY = e.clientY - widget.offsetTop;
-    widget.style.cursor = "grabbing";
-  });
-
-  document.addEventListener("mousemove", e => {
-    if (dragging) {
-      widget.style.left = (e.clientX - offsetX) + "px";
-      widget.style.top = (e.clientY - offsetY) + "px";
+  document.addEventListener("mousemove", (e) => {
+    if (isDragging) {
+      btn.style.left = (e.clientX - offsetX) + "px";
+      btn.style.top = (e.clientY - offsetY) + "px";
+      btn.style.right = "auto";
+      btn.style.bottom = "auto";
     }
   });
 
   document.addEventListener("mouseup", () => {
-    dragging = false;
-    widget.style.cursor = "grab";
+    if (isDragging) {
+      isDragging = false;
+      btn.style.cursor = "grab";
+      localStorage.setItem("skydiveBtnPos", JSON.stringify({
+        left: btn.style.left,
+        top: btn.style.top
+      }));
+    }
   });
 </script>
-
 </body>
 </html>
