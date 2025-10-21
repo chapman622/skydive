@@ -3,117 +3,99 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Set Nearest Skydive</title>
+<title>Skydive Waypoint Button</title>
 <style>
-  #setNearestBtn {
+  body { margin: 0; background: transparent; font-family: "Segoe UI", sans-serif; }
+  #setWaypointBtn {
     position: fixed;
     bottom: 20px;
     right: 20px;
     padding: 10px 16px;
-    background: #00b86b;
-    color: white;
     border: none;
     border-radius: 8px;
-    cursor: grab;
+    background: #00b86b;
+    color: white;
     font-weight: bold;
+    cursor: grab;
     box-shadow: 0 0 12px rgba(0,0,0,0.5);
-    z-index: 1000;
     user-select: none;
-    transition: all 0.2s ease;
   }
-  #setNearestBtn:hover {
-    background: #00d178;
-  }
-  #setNearestBtn.active {
-    background: #fff200;
-    color: #000;
-  }
+  #setWaypointBtn:active { cursor: grabbing; }
 </style>
 </head>
 <body>
-
-<button id="setNearestBtn">Set Nearest Skydive</button>
+<button id="setWaypointBtn">Set Nearest Waypoint</button>
 
 <script>
-  const skydiveLocations = [
-    { x: -1035.2, y: -2730.3 },
-    { x: 2034.4, y: 4700.2 },
-    { x: 250.1, y: 3400.5 },
-    { x: -1700.7, y: 3200.0 }
-  ];
+const skydiveLocations = [
+  { x: -1035.2, y: -2730.3 },
+  { x: 2034.4, y: 4700.2 },
+  { x: 250.1, y: 3400.5 },
+  { x: -1700.7, y: 3200.0 }
+];
 
-  let playerPos = { x: 0, y: 0 };
+let playerPos = { x: 0, y: 0 };
+const btn = document.getElementById("setWaypointBtn");
 
-  function getNearestSkydive() {
-    let nearest = null;
-    let minDist = Infinity;
-    for (let loc of skydiveLocations) {
-      const dx = loc.x - playerPos.x;
-      const dy = loc.y - playerPos.y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      if (dist < minDist) {
-        minDist = dist;
-        nearest = { ...loc, distance: dist };
-      }
-    }
-    return nearest;
+// Load saved position
+let currentX = parseFloat(localStorage.getItem("btnX")) || 0;
+let currentY = parseFloat(localStorage.getItem("btnY")) || 0;
+btn.style.transform = `translate(${currentX}px, ${currentY}px)`;
+
+// Compute nearest skydive location
+function getNearestSkydive() {
+  let nearest = null, minDist = Infinity;
+  for (const loc of skydiveLocations) {
+    const dx = loc.x - playerPos.x;
+    const dy = loc.y - playerPos.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < minDist) { minDist = dist; nearest = loc; }
   }
+  return nearest;
+}
 
-  const setWaypoint = (x, y) => {
-    window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
-  };
+// Send waypoint command to the game
+function setWaypoint(x, y) {
+  window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
+}
 
-  const btn = document.getElementById("setNearestBtn");
+// Click event
+btn.addEventListener("click", () => {
+  const nearest = getNearestSkydive();
+  if (nearest) setWaypoint(nearest.x, nearest.y);
+});
 
-  function updateButtonText() {
-    const nearest = getNearestSkydive();
-    if (nearest) {
-      btn.textContent = `Nearest Skydive: ${nearest.distance.toFixed(0)}m`;
-    } else {
-      btn.textContent = `Set Nearest Skydive`;
-    }
+// Smooth dragging
+let isDragging = false, startX, startY;
+
+btn.addEventListener("mousedown", (e) => {
+  isDragging = true;
+  startX = e.clientX - currentX;
+  startY = e.clientY - currentY;
+});
+
+document.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+  currentX = e.clientX - startX;
+  currentY = e.clientY - startY;
+  btn.style.transform = `translate(${currentX}px, ${currentY}px)`;
+});
+
+document.addEventListener("mouseup", () => {
+  if (isDragging) {
+    // Save position
+    localStorage.setItem("btnX", currentX);
+    localStorage.setItem("btnY", currentY);
   }
+  isDragging = false;
+});
 
-  window.addEventListener("message", (event) => {
-    if (event.data.type === "updatePlayerPos") {
-      playerPos = event.data.pos;
-      updateButtonText();
-    }
-  });
-
-  btn.addEventListener("click", () => {
-    const nearest = getNearestSkydive();
-    if (nearest) {
-      setWaypoint(nearest.x, nearest.y);
-      btn.classList.add("active");
-      setTimeout(() => btn.classList.remove("active"), 400);
-    }
-  });
-
-  // Drag functionality
-  let isDragging = false, offsetX, offsetY;
-
-  btn.addEventListener("mousedown", (e) => {
-    isDragging = true;
-    offsetX = e.clientX - btn.offsetLeft;
-    offsetY = e.clientY - btn.offsetTop;
-    btn.style.cursor = "grabbing";
-  });
-
-  document.addEventListener("mousemove", (e) => {
-    if (isDragging) {
-      btn.style.left = (e.clientX - offsetX) + "px";
-      btn.style.top = (e.clientY - offsetY) + "px";
-      btn.style.right = "auto";
-      btn.style.bottom = "auto";
-    }
-  });
-
-  document.addEventListener("mouseup", () => {
-    isDragging = false;
-    btn.style.cursor = "grab";
-  });
+// Receive in-game player position
+window.addEventListener("message", (event) => {
+  if (event.data.type === "updatePlayerPos") {
+    playerPos = { x: event.data.pos.x, y: event.data.pos.y };
+  }
+});
 </script>
-
 </body>
 </html>
