@@ -35,7 +35,6 @@
 <button id="setNearestBtn">Set Nearest Skydive</button>
 
 <script>
-  // Example skydive locations
   const skydiveLocations = [
     { x: -1035.2, y: -2730.3 },
     { x: 2034.4, y: 4700.2 },
@@ -60,16 +59,12 @@
     return nearest;
   }
 
-  // Set waypoint in-game
   const setWaypoint = (x, y) => {
     window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
-    // In-game notification
-    window.parent.postMessage({ type: "notify", message: `Waypoint set to nearest skydive!` }, "*");
   };
 
   const btn = document.getElementById("setNearestBtn");
 
-  // Update nearest distance dynamically
   function updateButtonText() {
     const nearest = getNearestSkydive();
     if (nearest) {
@@ -79,7 +74,6 @@
     }
   }
 
-  // Listen for in-game player position updates
   window.addEventListener("message", (event) => {
     if (event.data.type === "updatePlayerPos") {
       playerPos = event.data.pos;
@@ -87,7 +81,6 @@
     }
   });
 
-  // Click sets waypoint
   btn.addEventListener("click", () => {
     const nearest = getNearestSkydive();
     if (nearest) {
@@ -97,7 +90,7 @@
     }
   });
 
-  // Drag functionality with edge snap
+  // Drag functionality
   let isDragging = false, offsetX, offsetY;
 
   btn.addEventListener("mousedown", (e) => {
@@ -117,25 +110,8 @@
   });
 
   document.addEventListener("mouseup", () => {
-    if (!isDragging) return;
     isDragging = false;
     btn.style.cursor = "grab";
-
-    // Snap to nearest edge
-    const rect = btn.getBoundingClientRect();
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
-
-    if (rect.left + rect.width / 2 < windowWidth / 2) {
-      btn.style.left = "10px";
-      btn.style.right = "auto";
-    } else {
-      btn.style.left = "auto";
-      btn.style.right = "10px";
-    }
-
-    if (rect.top < 10) btn.style.top = "10px";
-    if (rect.bottom > windowHeight - 10) btn.style.top = (windowHeight - rect.height - 10) + "px";
   });
 </script>
 
