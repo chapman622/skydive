@@ -10,8 +10,9 @@
     position:fixed; bottom:20px; right:20px;
     background:rgba(0,0,0,0.6); border-radius:12px; padding:12px 20px;
     box-shadow:0 0 15px rgba(0,0,0,0.4); text-align:center;
-    font-size:16px; min-width:220px; cursor:move;
+    font-size:16px; min-width:220px;
   }
+  #header { cursor:move; font-weight:bold; margin-bottom:6px; }
   #widget:hover { background:rgba(0,0,0,0.8); }
   input { width:100%; padding:6px; margin-bottom:6px; border-radius:6px; border:none; }
   button { padding:6px 12px; border:none; border-radius:6px; background:#00b86b; color:white; cursor:pointer; }
@@ -21,9 +22,9 @@
 <body>
 
 <div id="widget">
-  <div>Enter VRPid & Private API Key</div>
-  <input type="text" id="vrpidInput" placeholder="Your VRPid">
-  <input type="password" id="apiKeyInput" placeholder="Your Private API Key">
+  <div id="header">Skydive Widget</div>
+  <input type="text" id="vrpidInput" placeholder="Your VRPid" tabindex="0">
+  <input type="password" id="apiKeyInput" placeholder="Your Private API Key" tabindex="0">
   <button onclick="startWidget()">Start</button>
   <div id="nearest"></div>
 </div>
@@ -80,11 +81,11 @@ function distance(a,b){
   return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2);
 }
 
-// Make widget draggable
-dragElement(document.getElementById("widget"));
-function dragElement(el){
+// Make widget draggable only by header
+dragElement(document.getElementById("widget"), document.getElementById("header"));
+function dragElement(el, handle){
   let pos1=0,pos2=0,pos3=0,pos4=0;
-  el.onmousedown = dragMouseDown;
+  handle.onmousedown = dragMouseDown;
   function dragMouseDown(e){
     e=e||window.event; e.preventDefault();
     pos3=e.clientX; pos4=e.clientY;
