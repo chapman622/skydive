@@ -3,87 +3,117 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Skydive Waypoint</title>
+<title>Skydive Locator</title>
 <style>
-  body { margin:0; background:transparent; font-family:Segoe UI,sans-serif; color:#fff;}
+  body { margin:0; font-family: "Segoe UI", sans-serif; color:#fff; background:transparent; }
   #widget {
-    position:fixed; bottom:20px; right:20px;
-    background:rgba(0,0,0,0.6); border-radius:12px; padding:12px 20px;
-    text-align:center; min-width:220px; box-shadow:0 0 15px rgba(0,0,0,0.4);
+    position: fixed; bottom:20px; right:20px;
+    background: rgba(0,0,0,0.6); padding:15px 20px;
+    border-radius:12px; box-shadow:0 0 15px rgba(0,0,0,0.4);
+    width:250px; text-align:center;
   }
-  #widget:hover { background:rgba(0,0,0,0.8); }
-  input { width:100%; padding:6px; margin:4px 0; border-radius:6px; border:none; }
-  button { padding:6px 12px; margin-top:4px; border:none; border-radius:6px; background:#00b86b; color:white; cursor:pointer; }
-  #nearest { margin-top:8px; font-weight:bold; word-break:break-word; }
+  input { padding:6px; width:80%; margin:5px 0; border-radius:5px; border:none; }
+  button { padding:6px 12px; margin-top:5px; border:none; border-radius:6px; background:#00b86b; color:#fff; cursor:pointer; }
+  #status { margin-top:10px; font-size:14px; }
 </style>
 </head>
 <body>
+
 <div id="widget">
-  <input type="text" id="vrpidInput" placeholder="Your VRPid">
-  <input type="password" id="apiKeyInput" placeholder="Private API Key">
-  <button onclick="setNearestSkydive()">Set Nearest Skydive Waypoint</button>
-  <div id="nearest"></div>
+  <h3>Skydive Locator</h3>
+  <input type="number" id="vrpInput" placeholder="Enter VRPid">
+  <br>
+  <button onclick="locateSkydive()">Find Nearest Skydive</button>
+  <div id="status">Enter VRPid and API key</div>
 </div>
 
 <script>
-const skydiveLocations = [
-  {name:"Alpha", x:200, y:300, z:100},
-  {name:"Beta", x:-1500, y:2500, z:100},
-  {name:"Gamma", x:1000, y:-2000, z:100}
+const SERVERS = [
+  "https://tycoon-2epova.users.cfx.re",
+  "https://tycoon-njyvop.users.cfx.re"
 ];
 
-// Only servers you are using
-const servers = [
-  {id:"2epova"},
-  {id:"njyvop"}
+const SKYDIVE_LOCATIONS = [
+  {x: -1000, y: 2000, z: 100},
+  {x: 500, y: -1500, z: 120},
+  {x: 3000, y: 4000, z: 200},
+  // ... add more in-game skydive coords here
 ];
 
-async function setNearestSkydive() {
-  const vrpid = document.getElementById("vrpidInput").value.trim();
-  const apiKey = document.getElementById("apiKeyInput").value.trim();
-  if(!vrpid || !apiKey) return alert("Enter VRPid and Private API Key");
+function getApiKey() {
+  const saved = localStorage.getItem("tycoonApiKey");
+  if (!saved) {
+    const key = prompt("Enter your Tycoon API key:");
+    if (!key) return null;
+    localStorage.setItem("tycoonApiKey", key.trim());
+    return key.trim();
+  }
+  return saved;
+}
 
-  document.getElementById("nearest").innerText = "Detecting server and position...";
+function distance3D(a,b){
+  return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2);
+}
 
-  let serverId = null;
+async function locateSkydive() {
+  const apiKey = getApiKey();
+  if(!apiKey){ alert("API key required"); return; }
+
+  const vrpid = parseInt(document.getElementById("vrpInput").value);
+  if(!vrpid){ alert("Enter valid VRPid"); return; }
+
+  document.getElementById("status").innerText = "Searching player location...";
+
   let playerPos = null;
+  let serverUrl = null;
 
-  for(const server of servers){
-    try{
-      const mapRes = await fetch(`https://tycoon-${server.id}.users.cfx.re/status/map/positions.json?v=${Date.now()}`, {
+  for(const srv of SERVERS){
+    try {
+      const res = await fetch(`${srv}/status/map/positions.json`, {
         headers: {"X-Tycoon-Key": apiKey}
       });
-      if(!mapRes.ok) continue;
-      const mapData = await mapRes.json();
-      const player = mapData.players.find(p => p[2]==vrpid);
-      if(player){
-        serverId = server.id;
-        playerPos = player[3]; // {x, y, z}
-        break;
+      if(!res.ok) continue;
+      const data = await res.json();
+      for(const p of data.players){
+        if(p[1]===vrpid){
+          playerPos = p[3]; // x,y,z,h
+          serverUrl = srv;
+          break;
+        }
       }
-    }catch(e){ continue; }
+      if(playerPos) break;
+    } catch(e){ console.error(e); }
   }
 
-  if(!serverId || !playerPos){
-    document.getElementById("nearest").innerText = "VRPid not found on any server";
+  if(!playerPos){
+    document.getElementById("status").innerText = "Player not found on any server";
     return;
   }
 
-  // Find nearest skydive
-  let nearest = skydiveLocations[0];
-  let minDist = distance(playerPos, nearest);
-  for(const loc of skydiveLocations){
-    const dist = distance(playerPos, loc);
-    if(dist<minDist){ minDist=dist; nearest=loc; }
+  // find nearest skydive location
+  let nearest = SKYDIVE_LOCATIONS[0];
+  let minDist = distance3D(playerPos, nearest);
+  for(const loc of SKYDIVE_LOCATIONS){
+    const dist = distance3D(playerPos, loc);
+    if(dist<minDist){ nearest=loc; minDist=dist; }
   }
 
-  document.getElementById("nearest").innerText = `Nearest Skydive: ${nearest.name} (${Math.round(minDist)}m)`;
+  document.getElementById("status").innerText = `Nearest skydive: x:${nearest.x}, y:${nearest.y}, z:${nearest.z}\nSetting waypoint...`;
 
-  // Set waypoint
-  if(window.setWaypoint) window.setWaypoint(nearest.x, nearest.y);
+  try {
+    const res = await fetch(`${serverUrl}/status/widget/setWaypoint.json`, {
+      method:"POST",
+      headers: {"Content-Type":"application/json","X-Tycoon-Key":apiKey},
+      body: JSON.stringify({x:nearest.x, y:nearest.y})
+    });
+    if(res.ok) document.getElementById("status").innerText = "Waypoint set successfully!";
+    else document.getElementById("status").innerText = "Failed to set waypoint";
+  } catch(e){
+    document.getElementById("status").innerText = "Error setting waypoint";
+    console.error(e);
+  }
 }
-
-function distance(a,b){ return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2); }
 </script>
+
 </body>
 </html>
