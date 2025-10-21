@@ -3,149 +3,106 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Skydive Finder Widget</title>
+<title>Skydive Widget</title>
 <style>
-  body { margin:0; font-family:"Segoe UI", sans-serif; background:transparent; color:#fff; }
+  body { margin:0; background:transparent; font-family:Segoe UI, sans-serif; }
   #widget {
-    position: fixed; bottom:20px; right:20px;
-    background: rgba(0,0,0,0.6); border-radius:12px; padding:12px 20px;
-    box-shadow:0 0 15px rgba(0,0,0,0.4); cursor: move; min-width:220px; text-align:center; z-index:9999;
+    position:fixed; bottom:20px; right:20px;
+    background:rgba(0,0,0,0.6); border-radius:12px; padding:12px 20px;
+    box-shadow:0 0 15px rgba(0,0,0,0.4); text-align:center;
+    font-size:16px; min-width:220px; cursor:move;
   }
-  #widget:hover { background: rgba(0,0,0,0.8); }
-  #status { font-size:16px; margin-bottom:8px; }
-  #keyPrompt {
-    position: fixed; top:50%; left:50%; transform:translate(-50%, -50%);
-    background: rgba(0,0,0,0.8); color:white; padding:20px; border-radius:10px; text-align:center;
-  }
-  input { padding:8px; border-radius:6px; border:none; width:180px; text-align:center; margin-top:10px; }
-  button { margin-top:10px; padding:6px 12px; border:none; background:#00b86b; color:white; border-radius:6px; cursor:pointer; }
+  #widget:hover { background:rgba(0,0,0,0.8); }
+  input { width:100%; padding:6px; margin-bottom:6px; border-radius:6px; border:none; }
+  button { padding:6px 12px; border:none; border-radius:6px; background:#00b86b; color:white; cursor:pointer; }
+  #nearest { margin-top:8px; font-weight:bold; }
 </style>
 </head>
 <body>
-<div id="widget">
-  <div id="status">Enter VRPid to find nearest skydive</div>
-  <input type="text" id="vrpid" placeholder="Your VRPid"><br>
-  <button onclick="start()">Start</button>
-</div>
 
-<div id="keyPrompt" style="display:none;">
-  <h3>Enter Tycoon API Key</h3>
-  <input type="password" id="apiKeyInput" placeholder="Private key"><br>
-  <button onclick="saveKey()">Save</button>
+<div id="widget">
+  <div>Enter VRPid & Private API Key</div>
+  <input type="text" id="vrpidInput" placeholder="Your VRPid">
+  <input type="password" id="apiKeyInput" placeholder="Your Private API Key">
+  <button onclick="startWidget()">Start</button>
+  <div id="nearest"></div>
 </div>
 
 <script>
-const SKYDIVES = [
-  { name:"Mount Chiliad", x:-500, y:5000 },
-  { name:"Los Santos Airport", x:-1000, y:-2000 },
-  { name:"Vinewood Hills", x:800, y:1200 }
+const skydiveLocations = [
+  {name:"Skydive Alpha", x:200, y:300, z:100},
+  {name:"Skydive Beta", x:-1500, y:2500, z:100},
+  {name:"Skydive Gamma", x:1000, y:-2000, z:100},
 ];
 
-const SERVERS = [
-  { name:"2epova", url:"https://tycoon-2epova.users.cfx.re/status/widget/players.json" },
-  { name:"njyvop", url:"https://tycoon-njvop.users.cfx.re/status/widget/players.json" }
-];
+let vrpid, apiKey, updateInterval;
 
-// ---- API Key Handling ----
-function getKey() {
-  const saved = localStorage.getItem("tycoonApiKey");
-  if (!saved || saved.trim() === "") {
-    document.getElementById("keyPrompt").style.display = "block";
-    return null;
-  }
-  return saved;
+function startWidget(){
+  vrpid = document.getElementById("vrpidInput").value.trim();
+  apiKey = document.getElementById("apiKeyInput").value.trim();
+  if(!vrpid || !apiKey) return alert("Enter VRPid and Private API Key");
+
+  findNearest();
+  updateInterval = setInterval(findNearest, 3000); // update every 3s
 }
 
-function saveKey() {
-  const key = document.getElementById("apiKeyInput").value.trim();
-  if (!key) { alert("Please enter a valid API key!"); return; }
-  localStorage.setItem("tycoonApiKey", key);
-  document.getElementById("keyPrompt").style.display = "none";
-  start();
-}
+async function findNearest(){
+  try{
+    const url = `https://tycoon-2epova.users.cfx.re/status/map/positions.json?v=${Date.now()}`;
+    const res = await fetch(url, {
+      headers: { "X-Tycoon-Key": apiKey }
+    });
+    const data = await res.json();
 
-// ---- Server & Position ----
-async function detectServer(vrpid) {
-  for (const server of SERVERS) {
-    try {
-      const res = await fetch(server.url);
-      const data = await res.json();
-      if (data.players.some(p => p[2]==vrpid)) return server.name;
-    } catch(e) { console.error(e); }
-  }
-  throw new Error("Player not found on any server.");
-}
+    const player = data.players.find(p => p[2]==vrpid);
+    if(!player) return document.getElementById("nearest").innerText = "Player not found";
 
-async function getPosition(serverName, apiKey, vrpid) {
-  const url = `https://tycoon-${serverName}.users.cfx.re/status/map/positions.json`;
-  const res = await fetch(url, { headers: { "X-Tycoon-Key": apiKey } });
-  const data = await res.json();
-  return data.players.find(p => p[2]==vrpid);
-}
-
-function distance(a,b){ return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2); }
-
-async function findNearest() {
-  try {
-    const apiKey = getKey();
-    if(!apiKey) return;
-
-    const vrpid = localStorage.getItem("vrpid");
-    const serverName = localStorage.getItem("serverName");
-    const player = await getPosition(serverName, apiKey, vrpid);
-    if(!player) throw new Error("Player not found in map data.");
-
-    const current = { x: player.pos_x, y: player.pos_y };
-    const nearest = SKYDIVES.reduce((a,b)=>distance(current,a)<distance(current,b)?a:b);
-
-    const statusDiv = document.getElementById("status");
-    statusDiv.innerText = `Nearest: ${nearest.name} (${nearest.x.toFixed(0)}, ${nearest.y.toFixed(0)})`;
-
-    if(typeof setWaypoint==="function") {
-      setWaypoint(nearest.x, nearest.y);
-      statusDiv.innerText += "\n✅ Waypoint set!";
-    } else {
-      statusDiv.innerText += "\n❗ Copy manually.";
+    const pos = player[3]; // x, y, z
+    let nearest = skydiveLocations[0];
+    let minDist = distance(pos, nearest);
+    for(const loc of skydiveLocations){
+      const dist = distance(pos, loc);
+      if(dist < minDist){ minDist=dist; nearest=loc; }
     }
-  } catch(err) {
+
+    document.getElementById("nearest").innerText = `Nearest Skydive: ${nearest.name} (${Math.round(minDist)}m)`;
+
+    // Set waypoint in-game
+    if(window.setWaypoint) window.setWaypoint(nearest.x, nearest.y);
+
+  }catch(err){
     console.error(err);
-    document.getElementById("status").innerText = "❌ "+err.message;
+    document.getElementById("nearest").innerText = "Error fetching positions";
   }
 }
 
-// ---- Start button ----
-async function start(){
-  const vrpid = document.getElementById("vrpid").value.trim();
-  if(!vrpid) return alert("Enter your VRPid first.");
-  localStorage.setItem("vrpid", vrpid);
-
-  const apiKey = getKey();
-  if(!apiKey) return;
-
-  try {
-    const serverName = await detectServer(vrpid);
-    localStorage.setItem("serverName", serverName);
-    findNearest();
-  } catch(err) {
-    alert("Error: " + err.message);
-  }
+function distance(a,b){
+  return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2);
 }
 
-// ---- Make draggable ----
-const widget=document.getElementById("widget");
-let isDragging=false, offsetX=0, offsetY=0;
-widget.addEventListener("mousedown", e=>{
-  isDragging=true;
-  offsetX=e.clientX-widget.offsetLeft;
-  offsetY=e.clientY-widget.offsetTop;
-});
-document.addEventListener("mouseup",()=>isDragging=false);
-document.addEventListener("mousemove", e=>{
-  if(isDragging){
-    widget.style.left=(e.clientX-offsetX)+"px";
-    widget.style.top=(e.clientY-offsetY)+"px";
+// Make widget draggable
+dragElement(document.getElementById("widget"));
+function dragElement(el){
+  let pos1=0,pos2=0,pos3=0,pos4=0;
+  el.onmousedown = dragMouseDown;
+  function dragMouseDown(e){
+    e=e||window.event; e.preventDefault();
+    pos3=e.clientX; pos4=e.clientY;
+    document.onmouseup=closeDragElement;
+    document.onmousemove=elementDrag;
   }
-});
+  function elementDrag(e){
+    e=e||window.event; e.preventDefault();
+    pos1=pos3-e.clientX; pos2=pos4-e.clientY;
+    pos3=e.clientX; pos4=e.clientY;
+    el.style.top=(el.offsetTop-pos2)+"px";
+    el.style.left=(el.offsetLeft-pos1)+"px";
+  }
+  function closeDragElement(){
+    document.onmouseup=null;
+    document.onmousemove=null;
+  }
+}
 </script>
 </body>
 </html>
