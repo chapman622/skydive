@@ -49,7 +49,7 @@
 
   // Listen for in-game player position updates
   window.addEventListener("message", (event) => {
-    const data = event.data.data || {};
+    const data = event.data.data || event.data || {};
     if (data.pos_x !== undefined) playerPos.x = data.pos_x;
     if (data.pos_y !== undefined) playerPos.y = data.pos_y;
   });
@@ -129,11 +129,8 @@
     }
   });
 
-  // ✅ Force request player position on load (twice to ensure data is cached)
+  // Force request player position immediately on load
   window.parent.postMessage({ type: "getData" }, "*");
-  setTimeout(() => {
-    window.parent.postMessage({ type: "getData" }, "*");
-  }, 2000);
 </script>
 </body>
 </html>
