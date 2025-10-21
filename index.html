@@ -79,21 +79,25 @@
     if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
   });
 
-  // Register keybind for FiveM Keybinds menu
-  window.parent.postMessage({
-    type: "registerTrigger",
-    trigger: "skydive_nearest",
-    name: "Set Nearest Skydive"
-  }, "*");
+  // Register the "Set Nearest Skydive" trigger
+window.parent.postMessage({
+  type: "registerTrigger",
+  trigger: "skydive_nearest",
+  name: "Set Nearest Skydive"
+}, "*");
 
-  // Listen for keybind trigger
-  window.addEventListener("message", (event) => {
-    const msg = event.data || {};
-    if (msg.type === "trigger" && msg.trigger === "skydive_nearest") {
-      const nearest = getNearestSkydive();
-      if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
+// Listen for keybind trigger
+window.addEventListener("message", (event) => {
+    const evt = event.data || {};
+    if (!evt.data) return;
+
+    for (const key in evt.data) {
+        if (key === "trigger_skydive_nearest") {
+            const nearest = getNearestSkydive();
+            if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
+        }
     }
-  });
+});
 
   // Drag functionality
   let isDragging = false, offsetX, offsetY;
