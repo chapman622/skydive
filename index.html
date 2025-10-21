@@ -18,7 +18,7 @@
     background: rgba(0,0,0,0.6);
     border-radius: 10px;
     padding: 12px 16px;
-    min-width: 180px;
+    min-width: 200px;
     box-shadow: 0 0 12px rgba(0,0,0,0.5);
     cursor: grab;
     z-index: 9999;
@@ -34,46 +34,35 @@
     color: white;
     border-radius: 6px;
     cursor: pointer;
-    width: 100%;
+    font-weight: bold;
   }
 </style>
 </head>
 <body>
-
 <div id="widget">
   <button id="setWaypointBtn">Set Nearest Skydive</button>
 </div>
 
 <script>
-  // Skydive locations
+  // Skydive locations with names
   const skydiveLocations = [
-    { name: "LSIA", x:-1583.657, y:-3180.656 },
-    { name: "Higgins Heli Tours", x:-760.006, y:-1514.055 },
-    { name: "Cayo Perico", x:4525.786, y:-4536.526 },
-    { name: "McKenzie Airport", x:2157.815, y:4782.25 },
-    { name: "Zancudo", x:-2264.329, y:3278.454 },
-    { name: "Roxwood Airport", x:-3066.467, y:7393.38 }
+    { name: "LSIA", x: -1583.657, y: -3180.656 },
+    { name: "Higgins Heli Tours", x: -760.006, y: -1514.055 },
+    { name: "Cayo Perico", x: 4525.786, y: -4536.526 },
+    { name: "McKenzie Airport", x: 2157.815, y: 4782.25 },
+    { name: "Zancudo", x: -2264.329, y: 3278.454 },
+    { name: "Roxwood Airport", x: -3066.467, y: 7393.38 }
   ];
 
-  let player_x = 0;
-  let player_y = 0;
+  let playerPos = { x: 0, y: 0 };
 
-  // Listen for in-game player position
-  window.addEventListener("message", (event) => {
-    if (!event.data || !event.data.data) return;
-    if (event.data.type === "updatePlayerPos") {
-      if ("pos_x" in event.data.data) player_x = event.data.data.pos_x;
-      if ("pos_y" in event.data.data) player_y = event.data.data.pos_y;
-    }
-  });
-
-  // Find nearest skydive
+  // Get nearest skydive location
   function getNearestSkydive() {
     let nearest = null;
     let minDist = Infinity;
     for (let loc of skydiveLocations) {
-      const dx = loc.x - player_x;
-      const dy = loc.y - player_y;
+      const dx = loc.x - playerPos.x;
+      const dy = loc.y - playerPos.y;
       const dist = Math.sqrt(dx*dx + dy*dy);
       if (dist < minDist) {
         minDist = dist;
@@ -83,17 +72,30 @@
     return nearest;
   }
 
-  // Send waypoint command
+  // Set waypoint in-game
   function setWaypoint(x, y) {
     window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
   }
+
+  // Show notification above minimap
+  function showNotification(text) {
+    window.parent.postMessage({ type: "notification", text }, "*");
+  }
+
+  // Listen for in-game position updates
+  window.addEventListener("message", (event) => {
+    if (event.data.data) {
+      if (event.data.data.pos_x !== undefined) playerPos.x = event.data.data.pos_x;
+      if (event.data.data.pos_y !== undefined) playerPos.y = event.data.data.pos_y;
+    }
+  });
 
   // Button click
   document.getElementById("setWaypointBtn").addEventListener("click", () => {
     const nearest = getNearestSkydive();
     if (nearest) {
       setWaypoint(nearest.x, nearest.y);
-      document.getElementById("setWaypointBtn").textContent = `Waypoint: ${nearest.name}`;
+      showNotification(`Waypoint set to: ${nearest.name}`);
     }
   });
 
@@ -120,13 +122,16 @@
     widget.style.cursor = "grab";
   });
 
-  // Optional: keybind F6 to trigger waypoint
-  document.addEventListener("keydown", (e) => {
+  // Register F6 hotkey
+  window.addEventListener("keydown", (e) => {
     if (e.code === "F6") {
-      document.getElementById("setWaypointBtn").click();
+      const nearest = getNearestSkydive();
+      if (nearest) {
+        setWaypoint(nearest.x, nearest.y);
+        showNotification(`Waypoint set to: ${nearest.name}`);
+      }
     }
   });
 </script>
-
 </body>
 </html>
