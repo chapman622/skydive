@@ -5,112 +5,129 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Skydive Locator</title>
 <style>
-  body { margin:0; font-family: "Segoe UI", sans-serif; color:#fff; background:transparent; }
-  #widget {
-    position: fixed; bottom:20px; right:20px;
-    background: rgba(0,0,0,0.6); padding:15px 20px;
-    border-radius:12px; box-shadow:0 0 15px rgba(0,0,0,0.4);
-    width:250px; text-align:center;
+  body {
+    margin: 0;
+    font-family: "Segoe UI", sans-serif;
+    background: transparent;
+    color: #fff;
   }
-  input { padding:6px; width:80%; margin:5px 0; border-radius:5px; border:none; }
-  button { padding:6px 12px; margin-top:5px; border:none; border-radius:6px; background:#00b86b; color:#fff; cursor:pointer; }
-  #status { margin-top:10px; font-size:14px; }
+  #widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0,0,0,0.6);
+    padding: 16px;
+    border-radius: 12px;
+    min-width: 220px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.4);
+    text-align: center;
+  }
+  #widget input {
+    margin: 6px 0;
+    padding: 6px;
+    border-radius: 6px;
+    border: none;
+    width: 180px;
+    text-align: center;
+  }
+  #widget button {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: none;
+    background: #00b86b;
+    color: white;
+    cursor: pointer;
+  }
+  #status {
+    margin-top: 10px;
+    font-size: 14px;
+  }
 </style>
 </head>
 <body>
 
 <div id="widget">
-  <h3>Skydive Locator</h3>
-  <input type="number" id="vrpInput" placeholder="Enter VRPid">
-  <br>
-  <button onclick="locateSkydive()">Find Nearest Skydive</button>
-  <div id="status">Enter VRPid and API key</div>
+  <div id="inputs">
+    <input type="password" id="apiKey" placeholder="Enter API Key"><br>
+    <input type="number" id="vrpId" placeholder="Enter VRP ID"><br>
+    <button onclick="start()">Set Skydive Waypoint</button>
+  </div>
+  <div id="status">Waiting for input...</div>
 </div>
 
 <script>
-const SERVERS = [
-  "https://tycoon-2epova.users.cfx.re",
-  "https://tycoon-njyvop.users.cfx.re"
-];
-
 const SKYDIVE_LOCATIONS = [
-  {x: -1000, y: 2000, z: 100},
-  {x: 500, y: -1500, z: 120},
-  {x: 3000, y: 4000, z: 200},
-  // ... add more in-game skydive coords here
+  {x: 2000, y: 3000, z: 50},
+  {x: -1500, y: 2500, z: 50},
+  {x: 1000, y: -2000, z: 50},
+  {x: -2500, y: -1500, z: 50}
 ];
 
-function getApiKey() {
-  const saved = localStorage.getItem("tycoonApiKey");
-  if (!saved) {
-    const key = prompt("Enter your Tycoon API key:");
-    if (!key) return null;
-    localStorage.setItem("tycoonApiKey", key.trim());
-    return key.trim();
-  }
-  return saved;
+function distance(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  const dz = a.z - b.z;
+  return Math.sqrt(dx*dx + dy*dy + dz*dz);
 }
 
-function distance3D(a,b){
-  return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2);
-}
+async function start() {
+  const apiKey = document.getElementById("apiKey").value.trim();
+  const vrpId = parseInt(document.getElementById("vrpId").value.trim());
+  const statusEl = document.getElementById("status");
 
-async function locateSkydive() {
-  const apiKey = getApiKey();
-  if(!apiKey){ alert("API key required"); return; }
-
-  const vrpid = parseInt(document.getElementById("vrpInput").value);
-  if(!vrpid){ alert("Enter valid VRPid"); return; }
-
-  document.getElementById("status").innerText = "Searching player location...";
-
-  let playerPos = null;
-  let serverUrl = null;
-
-  for(const srv of SERVERS){
-    try {
-      const res = await fetch(`${srv}/status/map/positions.json`, {
-        headers: {"X-Tycoon-Key": apiKey}
-      });
-      if(!res.ok) continue;
-      const data = await res.json();
-      for(const p of data.players){
-        if(p[1]===vrpid){
-          playerPos = p[3]; // x,y,z,h
-          serverUrl = srv;
-          break;
-        }
-      }
-      if(playerPos) break;
-    } catch(e){ console.error(e); }
-  }
-
-  if(!playerPos){
-    document.getElementById("status").innerText = "Player not found on any server";
+  if (!apiKey || !vrpId) {
+    statusEl.textContent = "Please enter both API key and VRP ID.";
     return;
   }
 
-  // find nearest skydive location
-  let nearest = SKYDIVE_LOCATIONS[0];
-  let minDist = distance3D(playerPos, nearest);
-  for(const loc of SKYDIVE_LOCATIONS){
-    const dist = distance3D(playerPos, loc);
-    if(dist<minDist){ nearest=loc; minDist=dist; }
-  }
-
-  document.getElementById("status").innerText = `Nearest skydive: x:${nearest.x}, y:${nearest.y}, z:${nearest.z}\nSetting waypoint...`;
+  statusEl.textContent = "Fetching positions...";
 
   try {
-    const res = await fetch(`${serverUrl}/status/widget/setWaypoint.json`, {
-      method:"POST",
-      headers: {"Content-Type":"application/json","X-Tycoon-Key":apiKey},
-      body: JSON.stringify({x:nearest.x, y:nearest.y})
+    const res = await fetch("https://tycoon-2epova.users.cfx.re/status/map/positions.json", {
+      headers: { "X-Tycoon-Key": apiKey }
     });
-    if(res.ok) document.getElementById("status").innerText = "Waypoint set successfully!";
-    else document.getElementById("status").innerText = "Failed to set waypoint";
-  } catch(e){
-    document.getElementById("status").innerText = "Error setting waypoint";
-    console.error(e);
+    const data = await res.json();
+
+    // Find player by VRP ID
+    const player = data.players.find(p => p[1] === vrpId);
+    if (!player) {
+      statusEl.textContent = "VRP ID not found on this server.";
+      return;
+    }
+
+    const pos = player[3]; // {x, y, z, h}
+
+    // Find nearest skydive
+    let nearest = SKYDIVE_LOCATIONS[0];
+    let minDist = distance(pos, nearest);
+
+    for (const loc of SKYDIVE_LOCATIONS) {
+      const d = distance(pos, loc);
+      if (d < minDist) {
+        nearest = loc;
+        minDist = d;
+      }
+    }
+
+    // Set waypoint
+    const wpRes = await fetch("https://tycoon-2epova.users.cfx.re/api/setWaypoint", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Tycoon-Key": apiKey
+      },
+      body: JSON.stringify({x: nearest.x, y: nearest.y})
+    });
+
+    if (wpRes.ok) {
+      statusEl.textContent = `Waypoint set to nearest skydive! (${Math.round(minDist)} units away)`;
+    } else {
+      statusEl.textContent = "Failed to set waypoint.";
+    }
+
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "Error fetching data.";
   }
 }
 </script>
