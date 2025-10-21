@@ -129,8 +129,11 @@
     }
   });
 
-  // Force request player position immediately on load
+  // ✅ Force request player position on load (twice to ensure data is cached)
   window.parent.postMessage({ type: "getData" }, "*");
+  setTimeout(() => {
+    window.parent.postMessage({ type: "getData" }, "*");
+  }, 2000);
 </script>
 </body>
 </html>
