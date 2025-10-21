@@ -5,12 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Skydive Finder</title>
 <style>
-  body {
-    margin: 0;
-    font-family: "Segoe UI", sans-serif;
-    background: transparent;
-    color: white;
-  }
+  body { margin: 0; background: transparent; font-family: "Segoe UI", sans-serif; }
   #widget {
     position: fixed;
     bottom: 20px;
@@ -18,14 +13,12 @@
     background: rgba(0,0,0,0.6);
     border-radius: 10px;
     padding: 12px 16px;
-    min-width: 180px;
+    min-width: 200px;
     box-shadow: 0 0 12px rgba(0,0,0,0.5);
     cursor: grab;
-    user-select: none;
   }
-  #widget:hover {
-    background: rgba(0,0,0,0.8);
-  }
+  #widget:hover { background: rgba(0,0,0,0.8); }
+  #nearest { margin-top: 8px; font-weight: bold; }
   button {
     margin-top: 8px;
     padding: 6px 12px;
@@ -38,28 +31,31 @@
 </style>
 </head>
 <body>
+
 <div id="widget">
+  <div>Skydive Finder</div>
+  <div id="nearest">Calculating nearest skydive...</div>
   <button id="setWaypointBtn">Set Nearest Skydive</button>
 </div>
 
 <script>
   // Skydive locations with names
   const skydiveLocations = [
-    { name: "LSIA", x:-1583.657, y:-3180.656 },
-    { name: "Higgins Heli Tours", x:-760.006, y:-1514.055 },
-    { name: "Cayo Perico", x:4525.786, y:-4536.526 },
-    { name: "McKenzie Airport", x:2157.815, y:4782.25 },
-    { name: "Zancudo", x:-2264.329, y:3278.454 },
-    { name: "Roxwood Airport", x:-3066.467, y:7393.38 }
+    { name: "LSIA", x: -1583.657, y: -3180.656 },
+    { name: "Higgins Heli Tours", x: -760.006, y: -1514.055 },
+    { name: "Cayo Perico", x: 4525.786, y: -4536.526 },
+    { name: "McKenzie Airport", x: 2157.815, y: 4782.25 },
+    { name: "Zancudo", x: -2264.329, y: 3278.454 },
+    { name: "Roxwood Airport", x: -3066.467, y: 7393.38 }
   ];
 
-  let playerPos = { x:0, y:0 };
+  let playerPos = { x: 0, y: 0 };
 
-  // Get nearest skydive
+  // Get nearest skydive location
   function getNearestSkydive() {
     let nearest = null;
     let minDist = Infinity;
-    for (let loc of skydiveLocations) {
+    for (const loc of skydiveLocations) {
       const dx = loc.x - playerPos.x;
       const dy = loc.y - playerPos.y;
       const dist = Math.sqrt(dx*dx + dy*dy);
@@ -71,56 +67,65 @@
     return nearest;
   }
 
-  // Send waypoint command to game
+  // Set waypoint in-game
   function setWaypoint(x, y) {
     window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
   }
 
-  const button = document.getElementById("setWaypointBtn");
-  button.addEventListener("click", () => {
+  // Update nearest skydive label in real-time
+  function updateNearestLabel() {
     const nearest = getNearestSkydive();
     if (nearest) {
-      setWaypoint(nearest.x, nearest.y);
-      button.textContent = `Waypoint: ${nearest.name}`;
+      document.getElementById("nearest").textContent = `Nearest: ${nearest.name}`;
+    }
+  }
+
+  // Listen for in-game player position updates
+  window.addEventListener("message", (event) => {
+    if (event.data.type === "updatePlayerPos") {
+      playerPos.x = event.data.pos.x;
+      playerPos.y = event.data.pos.y;
+      updateNearestLabel();
     }
   });
 
-  // Dragging
+  // Button click sets nearest waypoint
+  document.getElementById("setWaypointBtn").addEventListener("click", () => {
+    const nearest = getNearestSkydive();
+    if (nearest) setWaypoint(nearest.x, nearest.y);
+  });
+
+  // F6 keybind to set nearest waypoint
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "F6") {
+      const nearest = getNearestSkydive();
+      if (nearest) setWaypoint(nearest.x, nearest.y);
+    }
+  });
+
+  // Draggable widget
   const widget = document.getElementById("widget");
-  let isDragging = false, offsetX, offsetY;
+  let dragging = false, offsetX, offsetY;
 
   widget.addEventListener("mousedown", e => {
-    isDragging = true;
+    dragging = true;
     offsetX = e.clientX - widget.offsetLeft;
     offsetY = e.clientY - widget.offsetTop;
     widget.style.cursor = "grabbing";
   });
 
   document.addEventListener("mousemove", e => {
-    if (isDragging) {
+    if (dragging) {
       widget.style.left = (e.clientX - offsetX) + "px";
       widget.style.top = (e.clientY - offsetY) + "px";
     }
   });
 
   document.addEventListener("mouseup", () => {
-    isDragging = false;
+    dragging = false;
     widget.style.cursor = "grab";
   });
-
-  // Listen for in-game player position updates
-  window.addEventListener("message", (event) => {
-    if (event.data.type === "updatePlayerPos") {
-      playerPos = { x: event.data.pos.x, y: event.data.pos.y };
-    }
-  });
-
-  // F6 keybind
-  window.addEventListener("keyup", (e) => {
-    if (e.code === "F6") {
-      button.click();
-    }
-  });
 </script>
+
 </body>
 </html>
