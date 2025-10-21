@@ -46,12 +46,22 @@
   ];
 
   let playerPos = { x: 0, y: 0 };
+  let firstPositionReceived = false;
 
   // Listen for in-game player position updates
   window.addEventListener("message", (event) => {
     const data = event.data.data || event.data || {};
     if (data.pos_x !== undefined) playerPos.x = data.pos_x;
     if (data.pos_y !== undefined) playerPos.y = data.pos_y;
+
+    // Debug: notify when position is first received
+    if (!firstPositionReceived && data.pos_x !== undefined && data.pos_y !== undefined) {
+      firstPositionReceived = true;
+      window.parent.postMessage({ 
+        type: "notification", 
+        text: "✅ Player position received successfully." 
+      }, "*");
+    }
   });
 
   // Calculate nearest skydive
