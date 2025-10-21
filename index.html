@@ -3,123 +3,75 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Skydive Finder</title>
+<title>Skydive Locator</title>
 <style>
-  body {
-    margin: 0;
-    font-family: "Segoe UI", sans-serif;
-    background: transparent;
-    color: white;
-  }
+  body { margin: 0; font-family: "Segoe UI", sans-serif; color: #fff; background: transparent; }
   #widget {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(0,0,0,0.6);
-    border-radius: 10px;
-    padding: 12px 16px;
-    min-width: 200px;
-    box-shadow: 0 0 12px rgba(0,0,0,0.5);
-    cursor: grab;
+    position: fixed; bottom: 20px; right: 20px;
+    background: rgba(0,0,0,0.6); border-radius: 12px;
+    padding: 12px 20px; box-shadow: 0 0 15px rgba(0,0,0,0.4);
+    min-width: 220px; cursor: grab;
   }
-  #widget:hover {
-    background: rgba(0,0,0,0.8);
-  }
-  #nearest {
-    margin-top: 8px;
-    font-weight: bold;
-  }
-  button {
-    margin-top: 8px;
-    padding: 6px 12px;
-    border: none;
-    background: #00b86b;
-    color: white;
-    border-radius: 6px;
-    cursor: pointer;
-  }
+  #widget:hover { background: rgba(0,0,0,0.8); }
+  button { padding: 6px; margin-top: 6px; border-radius: 6px; border: none; width: 100%; background: #00b86b; color: white; cursor: pointer; }
+  #nearest { margin-top: 8px; font-weight: bold; }
 </style>
 </head>
 <body>
 <div id="widget">
-  <div>Skydive Finder</div>
-  <div id="nearest">Calculating...</div>
-  <button id="setWaypointBtn">Set Nearest Waypoint</button>
+  <h3>Skydive Locator</h3>
+  <button id="setWaypointBtn">Set Nearest Skydive Waypoint</button>
+  <div id="nearest">Nearest location: --</div>
 </div>
 
 <script>
-  // Example skydive locations
-  const skydiveLocations = [
-    { x: -1035.2, y: -2730.3, z: 20 },
-    { x: 2034.4, y: 4700.2, z: 40 },
-    { x: 250.1, y: 3400.5, z: 30 },
-    { x: -1700.7, y: 3200.0, z: 25 }
-  ];
+const SKYS = [
+  { name: "Skydive A", x: 1000, y: 2000 },
+  { name: "Skydive B", x: -1500, y: 3000 },
+  { name: "Skydive C", x: 500, y: -2500 }
+]; // Example skydive locations
 
-  let playerPos = { x: 0, y: 0, z: 0 };
+// Dragging the widget
+const widget = document.getElementById("widget");
+let offsetX, offsetY, isDown = false;
+widget.addEventListener("mousedown", e => { isDown = true; offsetX = e.offsetX; offsetY = e.offsetY; widget.style.cursor="grabbing"; });
+document.addEventListener("mouseup", e => { isDown = false; widget.style.cursor="grab"; });
+document.addEventListener("mousemove", e => { if(!isDown) return; widget.style.top = e.clientY - offsetY + "px"; widget.style.left = e.clientX - offsetX + "px"; });
 
-  // Function to get the nearest skydive
-  function getNearestSkydive() {
-    let nearest = null;
-    let minDist = Infinity;
-    for (let loc of skydiveLocations) {
-      const dx = loc.x - playerPos.x;
-      const dy = loc.y - playerPos.y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      if (dist < minDist) {
-        minDist = dist;
-        nearest = loc;
-      }
-    }
-    return nearest;
+// Function to set waypoint in game
+const setWaypoint = (x, y) => {
+  window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
+};
+
+// Show notification above minimap
+const notify = (text) => {
+  window.parent.postMessage({ type: "showNotification", message: text }, "*");
+};
+
+// Find nearest skydive from current position
+function getNearestSkydive(px, py) {
+  let nearest = null;
+  let minDist = Infinity;
+  for (const s of SKYS) {
+    const dist = Math.hypot(s.x - px, s.y - py);
+    if (dist < minDist) { minDist = dist; nearest = s; }
   }
+  return nearest;
+}
 
-  // Function to set waypoint
-  const setWaypoint = (x, y) => {
-    window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
-  };
+// Set waypoint using in-game position
+document.getElementById("setWaypointBtn").addEventListener("click", () => {
+  // Assumes game provides player position via 'window.playerPosition' object
+  const pos = window.playerPosition; // {x, y, z}
+  if (!pos) return alert("Player position not detected in-game.");
 
-  // Listen for in-game position updates (example: game pushes playerPos)
-  window.addEventListener("message", (event) => {
-    if (event.data.type === "updatePlayerPos") {
-      playerPos = event.data.pos;
-      const nearest = getNearestSkydive();
-      if (nearest) {
-        document.getElementById("nearest").textContent = `Nearest Skydive: X:${nearest.x.toFixed(1)} Y:${nearest.y.toFixed(1)}`;
-      }
-    }
-  });
+  const nearest = getNearestSkydive(pos.x, pos.y);
+  if (!nearest) return;
 
-  document.getElementById("setWaypointBtn").addEventListener("click", () => {
-    const nearest = getNearestSkydive();
-    if (nearest) {
-      setWaypoint(nearest.x, nearest.y);
-      document.getElementById("nearest").textContent = `Waypoint set to: X:${nearest.x.toFixed(1)} Y:${nearest.y.toFixed(1)}`;
-    }
-  });
-
-  // Drag functionality
-  const widget = document.getElementById("widget");
-  let isDragging = false, offsetX, offsetY;
-
-  widget.addEventListener("mousedown", e => {
-    isDragging = true;
-    offsetX = e.clientX - widget.offsetLeft;
-    offsetY = e.clientY - widget.offsetTop;
-    widget.style.cursor = "grabbing";
-  });
-
-  document.addEventListener("mousemove", e => {
-    if (isDragging) {
-      widget.style.left = (e.clientX - offsetX) + "px";
-      widget.style.top = (e.clientY - offsetY) + "px";
-    }
-  });
-
-  document.addEventListener("mouseup", () => {
-    isDragging = false;
-    widget.style.cursor = "grab";
-  });
+  setWaypoint(nearest.x, nearest.y);
+  notify(`Waypoint set to nearest Skydive: ${nearest.name}`);
+  document.getElementById("nearest").textContent = `Nearest location: ${nearest.name} (X:${nearest.x.toFixed(0)} Y:${nearest.y.toFixed(0)})`;
+});
 </script>
 </body>
 </html>
