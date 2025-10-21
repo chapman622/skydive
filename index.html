@@ -79,11 +79,21 @@
     if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
   });
 
-  // F6 keybind
-  document.addEventListener("keydown", (e) => {
-    if (e.code === "F6") {
+   // Register keybind for FiveM Keybinds menu
+  window.parent.postMessage({
+    type: "registerTrigger",
+    trigger: "skydive_nearest",
+    name: "Set Nearest Skydive"
+  }, "*");
+
+  // Listen for keybind trigger
+  window.addEventListener("message", (event) => {
+    if (event.data.trigger === "skydive_nearest") {
       const nearest = getNearestSkydive();
-      if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
+      if (nearest) {
+        setWaypoint(nearest.x, nearest.y);
+        notify(`Waypoint set to ${nearest.name}`);
+      }
     }
   });
 
@@ -105,6 +115,11 @@
     isDragging = false;
     btn.style.cursor = "grab";
   });
+  window.addEventListener('keydown', (e) => {
+        if (e.key === "Escape") {
+            window.parent.postMessage({type: "pin"}, "*");
+        }
+    });
 </script>
 </body>
 </html>
