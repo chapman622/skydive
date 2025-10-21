@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nearest Skydive Button</title>
+<title>Nearest Skydive</title>
 <style>
   #nearestWaypointBtn {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    left: 20px;
+    top: 20px;
     background: rgba(0, 184, 107, 0.9);
     color: white;
     border: none;
@@ -27,9 +27,10 @@
 </head>
 <body>
 
-<button id="nearestWaypointBtn">Set Nearest Skydive</button>
+<button id="nearestWaypointBtn">Nearest Skydive</button>
 
 <script>
+  // Final skydive locations with names
   const skydiveLocations = [
     { name: "LSIA", x: -1583.657, y: -3180.656 },
     { name: "Higgins Heli Tours", x: -760.006, y: -1514.055 },
@@ -39,9 +40,9 @@
     { name: "Roxwood Airport", x: -3066.467, y: 7393.38 }
   ];
 
-  let playerPos = { x: 0, y: 0 }; // Will be updated by the game
+  let playerPos = { x: 0, y: 0 };
 
-  // Function to find nearest skydive
+  // Find nearest skydive
   function getNearestSkydive() {
     let nearest = null;
     let minDist = Infinity;
@@ -57,42 +58,52 @@
     return nearest;
   }
 
-  // Function to set in-game waypoint
+  // Set waypoint in-game
   function setWaypoint(x, y) {
     window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
   }
 
-  // Button click
   const btn = document.getElementById("nearestWaypointBtn");
+
+  // Click sets the waypoint
   btn.addEventListener("click", () => {
     const nearest = getNearestSkydive();
     if (nearest) {
       setWaypoint(nearest.x, nearest.y);
-      btn.textContent = `Waypoint: ${nearest.name}`;
     }
   });
 
-  // Listen for game to update player position
-  window.addEventListener("message", event => {
+  // Listen for player position updates from the game
+  window.addEventListener("message", (event) => {
     if (event.data.type === "updatePlayerPos") {
       playerPos = event.data.pos;
+      const nearest = getNearestSkydive();
+      if (nearest) {
+        btn.textContent = `Nearest: ${nearest.name}`;
+      }
     }
   });
 
-  // Dragging functionality
+  // Smooth drag functionality
   let isDragging = false, offsetX, offsetY;
   btn.addEventListener("mousedown", e => {
     isDragging = true;
     offsetX = e.clientX - btn.offsetLeft;
     offsetY = e.clientY - btn.offsetTop;
+    btn.style.cursor = "grabbing";
   });
+
   document.addEventListener("mousemove", e => {
     if (isDragging) {
       btn.style.left = (e.clientX - offsetX) + "px";
       btn.style.top = (e.clientY - offsetY) + "px";
     }
   });
-  document.addEventListener("mouseup", () => isDragging = false);
+
+  document.addEventListener("mouseup", () => {
+    isDragging = false;
+    btn.style.cursor = "grab";
+  });
 </script>
 
 </body>
