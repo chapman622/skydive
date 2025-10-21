@@ -16,7 +16,7 @@
   #widget:hover { background:rgba(0,0,0,0.8); }
   input { width:100%; padding:6px; margin-bottom:6px; border-radius:6px; border:none; }
   button { padding:6px 12px; border:none; border-radius:6px; background:#00b86b; color:white; cursor:pointer; }
-  #nearest { margin-top:8px; font-weight:bold; }
+  #nearest { margin-top:8px; font-weight:bold; word-break:break-word; }
 </style>
 </head>
 <body>
@@ -53,10 +53,25 @@ async function findNearest(){
     const res = await fetch(url, {
       headers: { "X-Tycoon-Key": apiKey }
     });
+
+    if(!res.ok){
+      // Show full HTTP error
+      document.getElementById("nearest").innerText = `HTTP Error: ${res.status} ${res.statusText}`;
+      return;
+    }
+
     const data = await res.json();
 
+    if(!data.players){
+      document.getElementById("nearest").innerText = `API Response Missing Players`;
+      return;
+    }
+
     const player = data.players.find(p => p[2]==vrpid);
-    if(!player) return document.getElementById("nearest").innerText = "Player not found";
+    if(!player){
+      document.getElementById("nearest").innerText = `Player with VRPid ${vrpid} not found`;
+      return;
+    }
 
     const pos = player[3]; // x, y, z
     let nearest = skydiveLocations[0];
@@ -72,8 +87,8 @@ async function findNearest(){
     if(window.setWaypoint) window.setWaypoint(nearest.x, nearest.y);
 
   }catch(err){
+    document.getElementById("nearest").innerText = `Error: ${err.message}`;
     console.error(err);
-    document.getElementById("nearest").innerText = "Error fetching positions";
   }
 }
 
