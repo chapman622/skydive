@@ -79,25 +79,25 @@
     if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
   });
 
-  // Register the "Set Nearest Skydive" trigger
-window.parent.postMessage({
-  type: "registerTrigger",
-  trigger: "skydive_nearest",
-  name: "Set Nearest Skydive"
-}, "*");
+  // Register keybind for FiveM Keybinds menu
+  window.parent.postMessage({
+    type: "registerTrigger",
+    trigger: "skydive_nearest",
+    name: "Set Nearest Skydive"
+  }, "*");
 
-// Listen for keybind trigger
-window.addEventListener("message", (event) => {
+  // Listen for keybind trigger
+  window.addEventListener("message", (event) => {
     const evt = event.data || {};
     if (!evt.data) return;
 
     for (const key in evt.data) {
-        if (key === "trigger_skydive_nearest") {
-            const nearest = getNearestSkydive();
-            if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
-        }
+      if (key === "trigger_skydive_nearest") {
+        const nearest = getNearestSkydive();
+        if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
+      }
     }
-});
+  });
 
   // Drag functionality
   let isDragging = false, offsetX, offsetY;
@@ -118,10 +118,10 @@ window.addEventListener("message", (event) => {
     btn.style.cursor = "grab";
   });
 
-  // Escape key pins the app
+  // Escape key to pin the app
   window.addEventListener('keydown', (e) => {
     if (e.key === "Escape") {
-      window.parent.postMessage({type: "pin"}, "*");
+      window.parent.postMessage({ type: "pin" }, "*");
     }
   });
 </script>
