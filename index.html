@@ -48,22 +48,35 @@
 
   let playerPos = { x: 0, y: 0, z: 0 };
 
-  // Request player position from the game when app loads
-  setTimeout(() => {
-    console.log("Requesting player position from game...");
-    window.parent.postMessage({ type: "getData" }, "*");
-  }, 1500);
+  // Request player position explicitly (with a unique id)
+  function requestPlayerPosition() {
+    const requestId = Date.now().toString();
+    console.log("Requesting player position via getData...");
+    window.parent.postMessage(
+      {
+        type: "getData",
+        requestId,
+      },
+      "*"
+    );
+  }
 
-  // Listen for game messages (to get player position)
+  // Listen for messages from the game
   window.addEventListener("message", (event) => {
-    // This event name may differ slightly depending on the game
-    console.log("Message received:", event.data);
-    if (event.data.type === "updatePlayerPos" && event.data.pos) {
-      playerPos = event.data.pos;
-      console.log("Player position updated:", playerPos);
-    } else if (event.data.type === "getData" && event.data.player) {
+    console.log("📩 Message received:", event.data);
+
+    if (!event.data) return;
+
+    // Case 1: Game sends back player data structure
+    if (event.data.type === "getData" && event.data.player && event.data.player.pos) {
       playerPos = event.data.player.pos;
-      console.log("Player position received from getData:", playerPos);
+      console.log("✅ Player position received from game:", playerPos);
+    }
+
+    // Case 2: Some servers just send { pos: {x,y,z} }
+    if (event.data.pos) {
+      playerPos = event.data.pos;
+      console.log("✅ Player position received (alt format):", playerPos);
     }
   });
 
@@ -83,47 +96,52 @@
     return nearest;
   }
 
-  // Function to set a waypoint in-game
+  // Function to set waypoint in-game
   function setWaypoint(x, y) {
-    console.log(`Setting waypoint to X:${x}, Y:${y}`);
+    console.log(`🎯 Setting waypoint to X:${x}, Y:${y}`);
     window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
   }
 
   // Button logic
   const button = document.getElementById("skydiveButton");
   button.addEventListener("click", () => {
-    const nearest = getNearestSkydive();
-    if (nearest) {
-      setWaypoint(nearest.x, nearest.y);
-      console.log(`Waypoint set to nearest: ${nearest.name}`);
-    } else {
-      console.warn("No player position detected yet.");
-    }
-  });
-
-  // Add F6 keybind
-  window.addEventListener("keydown", (e) => {
-    if (e.code === "F6") {
+    requestPlayerPosition(); // Always ask for fresh player data first
+    setTimeout(() => {
       const nearest = getNearestSkydive();
       if (nearest) {
         setWaypoint(nearest.x, nearest.y);
-        console.log(`(F6) Waypoint set to nearest: ${nearest.name}`);
+        console.log(`✅ Waypoint set to nearest: ${nearest.name}`);
       } else {
-        console.warn("No player position detected yet.");
+        console.warn("⚠️ No player position detected yet.");
       }
+    }, 500);
+  });
+
+  // F6 Keybind
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "F6") {
+      console.log("⌨️ F6 pressed — requesting player data...");
+      requestPlayerPosition();
+      setTimeout(() => {
+        const nearest = getNearestSkydive();
+        if (nearest) {
+          setWaypoint(nearest.x, nearest.y);
+          console.log(`✅ (F6) Waypoint set to nearest: ${nearest.name}`);
+        } else {
+          console.warn("⚠️ No player position detected yet.");
+        }
+      }, 500);
     }
   });
 
-  // Make button draggable (with smooth dragging)
+  // Smooth draggable button with saved position
   let isDragging = false, offsetX, offsetY;
-
   button.addEventListener("mousedown", (e) => {
     isDragging = true;
     offsetX = e.clientX - button.offsetLeft;
     offsetY = e.clientY - button.offsetTop;
     button.style.cursor = "grabbing";
   });
-
   document.addEventListener("mousemove", (e) => {
     if (isDragging) {
       button.style.left = (e.clientX - offsetX) + "px";
@@ -132,18 +150,16 @@
       button.style.bottom = "auto";
     }
   });
-
   document.addEventListener("mouseup", () => {
-    isDragging = false;
-    button.style.cursor = "grab";
-    // Optional: Save position to localStorage
-    localStorage.setItem("skydiveButtonPos", JSON.stringify({
-      left: button.style.left,
-      top: button.style.top
-    }));
+    if (isDragging) {
+      isDragging = false;
+      button.style.cursor = "grab";
+      localStorage.setItem("skydiveButtonPos", JSON.stringify({
+        left: button.style.left,
+        top: button.style.top
+      }));
+    }
   });
-
-  // Restore saved position if available
   window.addEventListener("load", () => {
     const saved = localStorage.getItem("skydiveButtonPos");
     if (saved) {
