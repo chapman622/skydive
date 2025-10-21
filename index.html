@@ -79,7 +79,7 @@
     if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
   });
 
-   // Register keybind for FiveM Keybinds menu
+  // Register keybind for FiveM Keybinds menu
   window.parent.postMessage({
     type: "registerTrigger",
     trigger: "skydive_nearest",
@@ -88,12 +88,10 @@
 
   // Listen for keybind trigger
   window.addEventListener("message", (event) => {
-    if (event.data.trigger === "skydive_nearest") {
+    const msg = event.data || {};
+    if (msg.type === "trigger" && msg.trigger === "skydive_nearest") {
       const nearest = getNearestSkydive();
-      if (nearest) {
-        setWaypoint(nearest.x, nearest.y);
-        notify(`Waypoint set to ${nearest.name}`);
-      }
+      if (nearest) setWaypoint(nearest.x, nearest.y, nearest.name);
     }
   });
 
@@ -115,11 +113,13 @@
     isDragging = false;
     btn.style.cursor = "grab";
   });
+
+  // Escape key pins the app
   window.addEventListener('keydown', (e) => {
-        if (e.key === "Escape") {
-            window.parent.postMessage({type: "pin"}, "*");
-        }
-    });
+    if (e.key === "Escape") {
+      window.parent.postMessage({type: "pin"}, "*");
+    }
+  });
 </script>
 </body>
 </html>
