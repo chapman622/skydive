@@ -32,9 +32,10 @@ const skydiveLocations = [
   {name:"Gamma", x:1000, y:-2000, z:100}
 ];
 
+// Only servers you are using
 const servers = [
-  {id:"2epova", url:"https://tycoon-2epova.users.cfx.re/status/widget/players.json"},
-  {id:"-njyvop", url:"https://tycoon-njyvop.users.cfx.re/status/widget/players.json"}
+  {id:"2epova"},
+  {id:"njyvop"}
 ];
 
 async function setNearestSkydive() {
@@ -42,58 +43,44 @@ async function setNearestSkydive() {
   const apiKey = document.getElementById("apiKeyInput").value.trim();
   if(!vrpid || !apiKey) return alert("Enter VRPid and Private API Key");
 
-  document.getElementById("nearest").innerText = "Detecting server...";
-  let serverId = null;
+  document.getElementById("nearest").innerText = "Detecting server and position...";
 
-  // Auto-detect server
+  let serverId = null;
+  let playerPos = null;
+
   for(const server of servers){
     try{
-      const res = await fetch(`${server.url}?v=${Date.now()}`, {
+      const mapRes = await fetch(`https://tycoon-${server.id}.users.cfx.re/status/map/positions.json?v=${Date.now()}`, {
         headers: {"X-Tycoon-Key": apiKey}
       });
-      if(!res.ok) continue;
-      const data = await res.json();
-      if(data.players?.some(p=>p[2]==vrpid)){
+      if(!mapRes.ok) continue;
+      const mapData = await mapRes.json();
+      const player = mapData.players.find(p => p[2]==vrpid);
+      if(player){
         serverId = server.id;
+        playerPos = player[3]; // {x, y, z}
         break;
       }
     }catch(e){ continue; }
   }
 
-  if(!serverId){
+  if(!serverId || !playerPos){
     document.getElementById("nearest").innerText = "VRPid not found on any server";
     return;
   }
 
-  document.getElementById("nearest").innerText = `Server detected: ${serverId}\nFetching position...`;
-
-  // Fetch positions
-  try{
-    const mapRes = await fetch(`https://tycoon-${serverId}.users.cfx.re/status/map/positions.json?v=${Date.now()}`, {
-      headers: {"X-Tycoon-Key": apiKey}
-    });
-    if(!mapRes.ok) throw new Error(mapRes.status);
-    const mapData = await mapRes.json();
-    const player = mapData.players.find(p=>p[2]==vrpid);
-    if(!player) throw new Error("Player not found");
-
-    const pos = player[3]; // x,y,z
-    // Find nearest skydive
-    let nearest = skydiveLocations[0];
-    let minDist = distance(pos, nearest);
-    for(const loc of skydiveLocations){
-      const dist = distance(pos, loc);
-      if(dist<minDist){ minDist=dist; nearest=loc; }
-    }
-
-    document.getElementById("nearest").innerText = `Nearest Skydive: ${nearest.name} (${Math.round(minDist)}m)`;
-
-    // Set waypoint
-    if(window.setWaypoint) window.setWaypoint(nearest.x, nearest.y);
-
-  }catch(err){
-    document.getElementById("nearest").innerText = `Error: ${err.message}`;
+  // Find nearest skydive
+  let nearest = skydiveLocations[0];
+  let minDist = distance(playerPos, nearest);
+  for(const loc of skydiveLocations){
+    const dist = distance(playerPos, loc);
+    if(dist<minDist){ minDist=dist; nearest=loc; }
   }
+
+  document.getElementById("nearest").innerText = `Nearest Skydive: ${nearest.name} (${Math.round(minDist)}m)`;
+
+  // Set waypoint
+  if(window.setWaypoint) window.setWaypoint(nearest.x, nearest.y);
 }
 
 function distance(a,b){ return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2); }
