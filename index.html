@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Skydive Finder</title>
 <style>
   body {
@@ -15,7 +15,7 @@
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0,0,0,0.7);
     color: white;
     border: none;
     border-radius: 10px;
@@ -27,16 +27,17 @@
   }
 
   #skydiveButton:hover {
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0,0,0,0.85);
     transform: scale(1.05);
   }
 </style>
 </head>
 <body>
 
-<button id="skydiveButton">Set Nearest Skydive</button>
+<button id="skydiveButton">Nearest Skydive</button>
 
 <script>
+  // --- Skydive Locations ---
   const skydiveLocations = [
     { name: "LSIA", x: -1583.657, y: -3180.656 },
     { name: "Higgins Heli Tours", x: -760.006, y: -1514.055 },
@@ -47,44 +48,39 @@
   ];
 
   let playerPos = { x: 0, y: 0, z: 0 };
+  let lastRequestId = null;
 
-  // Request player position explicitly (with a unique id)
-  function requestPlayerPosition() {
-    const requestId = Date.now().toString();
-    console.log("Requesting player position via getData...");
-    window.parent.postMessage(
-      {
-        type: "getData",
-        requestId,
-      },
-      "*"
-    );
+  // --- Send request to getData (like Morfik45's apps do) ---
+  function requestPlayerData() {
+    lastRequestId = Date.now().toString();
+    console.log("📤 Sending getData request...");
+    window.parent.postMessage({ type: "getData", requestId: lastRequestId }, "*");
   }
 
-  // Listen for messages from the game
+  // --- Handle responses from the game ---
   window.addEventListener("message", (event) => {
-    console.log("📩 Message received:", event.data);
+    const data = event.data;
+    if (!data) return;
 
-    if (!event.data) return;
-
-    // Case 1: Game sends back player data structure
-    if (event.data.type === "getData" && event.data.player && event.data.player.pos) {
-      playerPos = event.data.player.pos;
-      console.log("✅ Player position received from game:", playerPos);
-    }
-
-    // Case 2: Some servers just send { pos: {x,y,z} }
-    if (event.data.pos) {
-      playerPos = event.data.pos;
-      console.log("✅ Player position received (alt format):", playerPos);
+    // Match Morfik's callback pattern: the game responds with the same requestId
+    if (data.type === "getData" && data.requestId === lastRequestId) {
+      if (data.player && data.player.pos) {
+        playerPos = data.player.pos;
+        console.log("✅ Player position received:", playerPos);
+      } else if (data.pos) {
+        playerPos = data.pos;
+        console.log("✅ Player position (alt format):", playerPos);
+      } else {
+        console.warn("⚠️ getData response missing position:", data);
+      }
     }
   });
 
-  // Function to get the nearest skydive
+  // --- Find nearest skydive location ---
   function getNearestSkydive() {
     let nearest = null;
     let minDist = Infinity;
-    for (let loc of skydiveLocations) {
+    for (const loc of skydiveLocations) {
       const dx = loc.x - playerPos.x;
       const dy = loc.y - playerPos.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -96,52 +92,54 @@
     return nearest;
   }
 
-  // Function to set waypoint in-game
+  // --- Send waypoint to game ---
   function setWaypoint(x, y) {
-    console.log(`🎯 Setting waypoint to X:${x}, Y:${y}`);
+    console.log(`🎯 Setting waypoint to ${x}, ${y}`);
     window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
+
+    // Optional: Show notification above minimap
+    window.parent.postMessage(
+      { type: "notify", message: `📍 Waypoint set to nearest Skydive` },
+      "*"
+    );
   }
 
-  // Button logic
-  const button = document.getElementById("skydiveButton");
-  button.addEventListener("click", () => {
-    requestPlayerPosition(); // Always ask for fresh player data first
+  // --- Main action ---
+  function handleSetNearest() {
+    requestPlayerData();
+
     setTimeout(() => {
       const nearest = getNearestSkydive();
       if (nearest) {
         setWaypoint(nearest.x, nearest.y);
-        console.log(`✅ Waypoint set to nearest: ${nearest.name}`);
+        console.log(`✅ Nearest skydive set: ${nearest.name}`);
       } else {
-        console.warn("⚠️ No player position detected yet.");
+        console.warn("⚠️ Could not find nearest skydive — no player position.");
       }
-    }, 500);
-  });
+    }, 500); // small delay for getData response
+  }
 
-  // F6 Keybind
+  // --- Button click + F6 hotkey ---
+  const button = document.getElementById("skydiveButton");
+  button.addEventListener("click", handleSetNearest);
+
   window.addEventListener("keydown", (e) => {
     if (e.code === "F6") {
-      console.log("⌨️ F6 pressed — requesting player data...");
-      requestPlayerPosition();
-      setTimeout(() => {
-        const nearest = getNearestSkydive();
-        if (nearest) {
-          setWaypoint(nearest.x, nearest.y);
-          console.log(`✅ (F6) Waypoint set to nearest: ${nearest.name}`);
-        } else {
-          console.warn("⚠️ No player position detected yet.");
-        }
-      }, 500);
+      console.log("⌨️ F6 pressed");
+      handleSetNearest();
     }
   });
 
-  // Smooth draggable button with saved position
-  let isDragging = false, offsetX, offsetY;
+  // --- Smooth draggable button ---
+  let isDragging = false, offsetX = 0, offsetY = 0;
+
   button.addEventListener("mousedown", (e) => {
     isDragging = true;
     offsetX = e.clientX - button.offsetLeft;
     offsetY = e.clientY - button.offsetTop;
     button.style.cursor = "grabbing";
   });
+
   document.addEventListener("mousemove", (e) => {
     if (isDragging) {
       button.style.left = (e.clientX - offsetX) + "px";
@@ -150,6 +148,7 @@
       button.style.bottom = "auto";
     }
   });
+
   document.addEventListener("mouseup", () => {
     if (isDragging) {
       isDragging = false;
@@ -160,6 +159,8 @@
       }));
     }
   });
+
+  // --- Restore saved button position ---
   window.addEventListener("load", () => {
     const saved = localStorage.getItem("skydiveButtonPos");
     if (saved) {
@@ -171,6 +172,5 @@
     }
   });
 </script>
-
 </body>
 </html>
