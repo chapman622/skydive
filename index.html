@@ -3,76 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Skydive Finder</title>
+<title>Set Nearest Skydive</title>
 <style>
-  body {
-    margin: 0;
-    font-family: "Segoe UI", sans-serif;
-    background: transparent;
-    color: white;
-  }
-  #widget {
+  #setNearestBtn {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background: rgba(0,0,0,0.6);
-    border-radius: 10px;
-    padding: 12px 16px;
-    min-width: 200px;
-    box-shadow: 0 0 12px rgba(0,0,0,0.5);
-    cursor: grab;
-    z-index: 1000;
-  }
-  #widget:hover {
-    background: rgba(0,0,0,0.8);
-  }
-  #nearest {
-    margin-top: 8px;
-    font-weight: bold;
-  }
-  button {
-    margin-top: 8px;
-    padding: 6px 12px;
-    border: none;
+    padding: 10px 16px;
     background: #00b86b;
     color: white;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-
-  /* Notification styling */
-  #notification {
-    position: fixed;
-    bottom: 80px;
-    right: 20px;
-    background: rgba(0,0,0,0.8);
-    padding: 10px 16px;
+    border: none;
     border-radius: 8px;
+    cursor: grab;
+    font-weight: bold;
     box-shadow: 0 0 12px rgba(0,0,0,0.5);
-    opacity: 0;
-    transition: opacity 0.4s ease-in-out;
-    z-index: 1001;
+    z-index: 1000;
+    user-select: none;
+    transition: all 0.2s ease;
+  }
+  #setNearestBtn:hover {
+    background: #00d178;
+  }
+  #setNearestBtn.active {
+    background: #fff200;
+    color: #000;
   }
 </style>
 </head>
 <body>
-<div id="widget">
-  <div>Skydive Finder</div>
-  <div id="nearest">Calculating...</div>
-  <button id="setWaypointBtn">Set Nearest Waypoint</button>
-</div>
 
-<div id="notification"></div>
+<button id="setNearestBtn">Set Nearest Skydive</button>
 
 <script>
+  // Example skydive locations
   const skydiveLocations = [
-    { x: -1035.2, y: -2730.3, z: 20 },
-    { x: 2034.4, y: 4700.2, z: 40 },
-    { x: 250.1, y: 3400.5, z: 30 },
-    { x: -1700.7, y: 3200.0, z: 25 }
+    { x: -1035.2, y: -2730.3 },
+    { x: 2034.4, y: 4700.2 },
+    { x: 250.1, y: 3400.5 },
+    { x: -1700.7, y: 3200.0 }
   ];
 
-  let playerPos = { x: 0, y: 0, z: 0 };
+  let playerPos = { x: 0, y: 0 };
 
   function getNearestSkydive() {
     let nearest = null;
@@ -83,64 +54,90 @@
       const dist = Math.sqrt(dx*dx + dy*dy);
       if (dist < minDist) {
         minDist = dist;
-        nearest = loc;
+        nearest = { ...loc, distance: dist };
       }
     }
     return nearest;
   }
 
+  // Set waypoint in-game
   const setWaypoint = (x, y) => {
     window.parent.postMessage({ type: "setWaypoint", x, y }, "*");
-    showNotification(`Waypoint set to: X:${x.toFixed(1)} Y:${y.toFixed(1)}`);
+    // In-game notification
+    window.parent.postMessage({ type: "notify", message: `Waypoint set to nearest skydive!` }, "*");
   };
 
-  const showNotification = (message) => {
-    const notif = document.getElementById("notification");
-    notif.textContent = message;
-    notif.style.opacity = 1;
-    setTimeout(() => { notif.style.opacity = 0; }, 3000); // fade out after 3s
-  };
+  const btn = document.getElementById("setNearestBtn");
 
+  // Update nearest distance dynamically
+  function updateButtonText() {
+    const nearest = getNearestSkydive();
+    if (nearest) {
+      btn.textContent = `Nearest Skydive: ${nearest.distance.toFixed(0)}m`;
+    } else {
+      btn.textContent = `Set Nearest Skydive`;
+    }
+  }
+
+  // Listen for in-game player position updates
   window.addEventListener("message", (event) => {
     if (event.data.type === "updatePlayerPos") {
       playerPos = event.data.pos;
-      const nearest = getNearestSkydive();
-      if (nearest) {
-        document.getElementById("nearest").textContent = 
-          `Nearest Skydive: X:${nearest.x.toFixed(1)} Y:${nearest.y.toFixed(1)}`;
-      }
+      updateButtonText();
     }
   });
 
-  document.getElementById("setWaypointBtn").addEventListener("click", () => {
+  // Click sets waypoint
+  btn.addEventListener("click", () => {
     const nearest = getNearestSkydive();
     if (nearest) {
       setWaypoint(nearest.x, nearest.y);
+      btn.classList.add("active");
+      setTimeout(() => btn.classList.remove("active"), 400);
     }
   });
 
-  // Drag functionality
-  const widget = document.getElementById("widget");
+  // Drag functionality with edge snap
   let isDragging = false, offsetX, offsetY;
 
-  widget.addEventListener("mousedown", e => {
+  btn.addEventListener("mousedown", (e) => {
     isDragging = true;
-    offsetX = e.clientX - widget.offsetLeft;
-    offsetY = e.clientY - widget.offsetTop;
-    widget.style.cursor = "grabbing";
+    offsetX = e.clientX - btn.offsetLeft;
+    offsetY = e.clientY - btn.offsetTop;
+    btn.style.cursor = "grabbing";
   });
 
-  document.addEventListener("mousemove", e => {
+  document.addEventListener("mousemove", (e) => {
     if (isDragging) {
-      widget.style.left = (e.clientX - offsetX) + "px";
-      widget.style.top = (e.clientY - offsetY) + "px";
+      btn.style.left = (e.clientX - offsetX) + "px";
+      btn.style.top = (e.clientY - offsetY) + "px";
+      btn.style.right = "auto";
+      btn.style.bottom = "auto";
     }
   });
 
   document.addEventListener("mouseup", () => {
+    if (!isDragging) return;
     isDragging = false;
-    widget.style.cursor = "grab";
+    btn.style.cursor = "grab";
+
+    // Snap to nearest edge
+    const rect = btn.getBoundingClientRect();
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+
+    if (rect.left + rect.width / 2 < windowWidth / 2) {
+      btn.style.left = "10px";
+      btn.style.right = "auto";
+    } else {
+      btn.style.left = "auto";
+      btn.style.right = "10px";
+    }
+
+    if (rect.top < 10) btn.style.top = "10px";
+    if (rect.bottom > windowHeight - 10) btn.style.top = (windowHeight - rect.height - 10) + "px";
   });
 </script>
+
 </body>
 </html>
