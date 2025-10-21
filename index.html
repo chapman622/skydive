@@ -46,86 +46,92 @@ const SERVERS = [
   { name:"njyvop", url:"https://tycoon-njvop.users.cfx.re/status/widget/players.json" }
 ];
 
-// Save API key
-function saveKey(){
-  const key=document.getElementById("apiKeyInput").value.trim();
-  if(key){
-    localStorage.setItem("tycoonApiKey", key);
-    document.getElementById("keyPrompt").style.display="none";
-    start();
+// ---- API Key Handling ----
+function getKey() {
+  const saved = localStorage.getItem("tycoonApiKey");
+  if (!saved || saved.trim() === "") {
+    document.getElementById("keyPrompt").style.display = "block";
+    return null;
   }
+  return saved;
 }
 
-// Detect server
-async function detectServer(vrpid){
-  for(const server of SERVERS){
-    try{
-      const res=await fetch(server.url);
-      const data=await res.json();
-      if(data.players.some(p=>p[2]==vrpid)) return server.name;
-    }catch(e){ console.error(e); }
+function saveKey() {
+  const key = document.getElementById("apiKeyInput").value.trim();
+  if (!key) { alert("Please enter a valid API key!"); return; }
+  localStorage.setItem("tycoonApiKey", key);
+  document.getElementById("keyPrompt").style.display = "none";
+  start();
+}
+
+// ---- Server & Position ----
+async function detectServer(vrpid) {
+  for (const server of SERVERS) {
+    try {
+      const res = await fetch(server.url);
+      const data = await res.json();
+      if (data.players.some(p => p[2]==vrpid)) return server.name;
+    } catch(e) { console.error(e); }
   }
   throw new Error("Player not found on any server.");
 }
 
-// Get player position
-async function getPosition(serverName, apiKey, vrpid){
-  const url=`https://tycoon-${serverName}.users.cfx.re/status/map/positions.json`;
-  const res=await fetch(url, { headers:{ "X-Tycoon-Key": apiKey } });
-  const data=await res.json();
-  return data.players.find(p=>p[2]==vrpid);
+async function getPosition(serverName, apiKey, vrpid) {
+  const url = `https://tycoon-${serverName}.users.cfx.re/status/map/positions.json`;
+  const res = await fetch(url, { headers: { "X-Tycoon-Key": apiKey } });
+  const data = await res.json();
+  return data.players.find(p => p[2]==vrpid);
 }
 
-function distance(a,b){ return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2); }
+function distance(a,b){ return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2); }
 
-async function findNearest(){
-  try{
-    const apiKey=localStorage.getItem("tycoonApiKey");
-    const vrpid=localStorage.getItem("vrpid");
-    const serverName=localStorage.getItem("serverName");
+async function findNearest() {
+  try {
+    const apiKey = getKey();
+    if(!apiKey) return;
 
-    if(!apiKey) { document.getElementById("keyPrompt").style.display="block"; return; }
-
-    const player=await getPosition(serverName, apiKey, vrpid);
+    const vrpid = localStorage.getItem("vrpid");
+    const serverName = localStorage.getItem("serverName");
+    const player = await getPosition(serverName, apiKey, vrpid);
     if(!player) throw new Error("Player not found in map data.");
 
-    const current={ x:player.pos_x, y:player.pos_y };
-    const nearest=SKYDIVES.reduce((a,b)=>distance(current,a)<distance(current,b)?a:b);
+    const current = { x: player.pos_x, y: player.pos_y };
+    const nearest = SKYDIVES.reduce((a,b)=>distance(current,a)<distance(current,b)?a:b);
 
-    const statusDiv=document.getElementById("status");
-    statusDiv.innerText=`Nearest: ${nearest.name} (${nearest.x.toFixed(0)}, ${nearest.y.toFixed(0)})`;
+    const statusDiv = document.getElementById("status");
+    statusDiv.innerText = `Nearest: ${nearest.name} (${nearest.x.toFixed(0)}, ${nearest.y.toFixed(0)})`;
 
-    if(typeof setWaypoint==="function"){
+    if(typeof setWaypoint==="function") {
       setWaypoint(nearest.x, nearest.y);
-      statusDiv.innerText+="\n✅ Waypoint set!";
+      statusDiv.innerText += "\n✅ Waypoint set!";
     } else {
-      statusDiv.innerText+="\n❗ Copy manually.";
+      statusDiv.innerText += "\n❗ Copy manually.";
     }
-  } catch(err){
+  } catch(err) {
     console.error(err);
-    document.getElementById("status").innerText="❌ "+err.message;
+    document.getElementById("status").innerText = "❌ "+err.message;
   }
 }
 
+// ---- Start button ----
 async function start(){
-  const vrpid=document.getElementById("vrpid").value.trim();
+  const vrpid = document.getElementById("vrpid").value.trim();
   if(!vrpid) return alert("Enter your VRPid first.");
   localStorage.setItem("vrpid", vrpid);
 
-  let apiKey=localStorage.getItem("tycoonApiKey");
-  if(!apiKey){
-    document.getElementById("keyPrompt").style.display="block";
-    return;
-  }
+  const apiKey = getKey();
+  if(!apiKey) return;
 
-  try{
-    const serverName=await detectServer(vrpid);
+  try {
+    const serverName = await detectServer(vrpid);
     localStorage.setItem("serverName", serverName);
     findNearest();
-  }catch(err){ alert("Error: "+err.message); }
+  } catch(err) {
+    alert("Error: " + err.message);
+  }
 }
 
-// Make widget draggable
+// ---- Make draggable ----
 const widget=document.getElementById("widget");
 let isDragging=false, offsetX=0, offsetY=0;
 widget.addEventListener("mousedown", e=>{
